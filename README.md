@@ -13,9 +13,20 @@ A collection of retro-inspired games and demos for the Pimoroni Cosmic Unicorn 3
 - **PRETTY** - Colorful visual effects and animations
 
 ## 📸 Screenshots
+![Menu](screenshots/menu.jpeg)
+*Main launcher menu interface*
 
-![Blocks Game](screenshots/blocks.jpeg)
-*BLOCKS - Tetris-style puzzle game*
+![P-Type Game](screenshots/p-type.jpeg)
+*P-TYPE - R-Type inspired space shooter*
+
+![Race Game 1](screenshots/racer1.jpeg)
+*RACE - OutRun-inspired racing*
+
+![Race Game 2](screenshots/racer2.jpeg)
+*RACE - Racing in a tunnel*
+
+![Race Game 3](screenshots/racer3.jpeg)
+*RACE - Racing in the dark*
 
 ![Frogger Game](screenshots/frogger.jpeg)
 *FROG - Cosmic Frogger gameplay*
@@ -23,11 +34,9 @@ A collection of retro-inspired games and demos for the Pimoroni Cosmic Unicorn 3
 ![Qix Game](screenshots/qix.jpeg)
 *QIX - Territory control game*
 
-![Race Game 1](screenshots/racer1.jpeg)
-*RACE - OutRun-inspired racing*
+![Blocks Game](screenshots/blocks.jpeg)
+*BLOCKS - Tetris-style puzzle game*
 
-![Race Game 2](screenshots/racer2.jpeg)
-*RACE - Racing with different scenery*
 
 ## 🚀 Quick Start
 
