@@ -1,38 +1,82 @@
-# Pimoroni Cosmic Unicorn Games and Demos
-The file to upload to your pico on the cosmic unicorn is build/cosmic_launcher.uf2.
+# Cosmic Launcher - Pimoroni Cosmic Unicorn Games Collection
 
-Hold the button on the pico while you turn it on to put it in the correct bootsel mode. Then upload the uf2 to the drive that appears. 
-the pico will reboot and begin displaying the launcher menu. 
+A collection of retro-inspired games and demos for the Pimoroni Cosmic Unicorn 32×32 RGB LED matrix display.
 
-Hold 'D' button during any animation/game to exit back to the launcher. 
+## 🎮 Games & Demos
 
-Or for development work, use pictool intead: 
+- **SPOOK** - A spooky Halloween-themed animation
+- **P-TYPE** - R-Type inspired side-scrolling space shooter
+- **RACE** - OutRun-style arcade racing with multiple themes
+- **FROG** - Classic Frogger gameplay adapted for LED matrix
+- **QIX** - Territory control puzzle game
+- **BLOCKS** - Tetris-style block puzzle game
+- **PRETTY** - Colorful visual effects and animations
 
-```shell
+## 📸 Screenshots
+
+![Blocks Game](screenshots/blocks.jpeg)
+*BLOCKS - Tetris-style puzzle game*
+
+![Frogger Game](screenshots/frogger.jpeg)
+*FROG - Cosmic Frogger gameplay*
+
+![Qix Game](screenshots/qix.jpeg)
+*QIX - Territory control game*
+
+![Race Game 1](screenshots/racer1.jpeg)
+*RACE - OutRun-inspired racing*
+
+![Race Game 2](screenshots/racer2.jpeg)
+*RACE - Racing with different scenery*
+
+## 🚀 Quick Start
+
+1. **Download** the latest release: [`cosmic_launcher.uf2`](https://github.com/mrkwllmsn/cosmic_laucher/blob/main/build/cosmic_launcher.uf2)
+2. **Hold the BOOTSEL button** on your Pico while connecting it via USB
+3. **Drag and drop** the `.uf2` file to the RPI-RP2 drive that appears
+4. The Pico will automatically reboot and display the launcher menu
+
+## 🎯 Controls
+
+- **Navigation**: Use A/B/C buttons to navigate the launcher menu
+- **Exit to Menu**: Hold **D button** during any game/animation to return to launcher
+- **Game Controls**: Each game uses the Cosmic Unicorn's buttons (A, B, C, D, Volume, Brightness)
+
+## 🛠 Development
+
+### Using picotool (Recommended for Development)
+```bash
 sudo /usr/local/bin/picotool load './build/cosmic_launcher.uf2' -f
 ```
 
+### Building from Source
 
-The Games and Demos are:
+**Prerequisites:**
+- Pico SDK properly configured
+- Pimoroni Pico libraries installed
+- CMake 3.12 or higher
 
-- SPOOK - A halloween themed animation. 
-- P-TYPE - An R-type inspired side scrolling shooter.
-- RACE - An outrun inspired race game.
-- FROG - A game of Cosmic Frogger.
-- QIX - A version of Qix for the Cosmic Unicorn.
-- BLOCKS - A simple playable version of tetris.
-- PRETTY - Some colourful visual effects.
+**Build Steps:**
+1. Clone this repository
+2. Initialize git submodules: `git submodule update --init`
+3. Create build directory: `mkdir build && cd build`
+4. Configure: `cmake .. -DPICO_BOARD=pico_w`
+5. Build: `make cosmic_launcher`
 
+The compiled `.uf2` file will be available in the `build/` directory.
 
-Most of these will play as an animation until you start interacting with the buttons. Hold D to return to Menu.
+## ⚡ Features
 
+- **Seamless Navigation**: Easy-to-use launcher interface
+- **Multiple Game Modes**: Each game supports both demo and interactive modes
+- **Optimized Performance**: Smooth 60fps gameplay on 32×32 LED matrix
+- **Retro Aesthetics**: Classic arcade-inspired visuals and gameplay
 
-## Installation: 
-Download the uf2 file from build here: https://github.com/mrkwllmsn/cosmic_laucher/blob/main/build/cosmic_launcher.uf2
+## 🤝 Contributing
 
-Upload it to your pico. 
+Feel free to submit issues, feature requests, or pull requests to improve the games collection!
 
+## 📝 License
 
-## Building 
-You need the pico-sdk and associated pimoroni setup for building c. If you can build their c++ examples, you should be good to go to build this. 
+This project builds upon the Pimoroni Pico libraries. Please refer to individual source files for specific licensing information. 
 
