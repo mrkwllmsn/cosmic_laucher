@@ -1,0 +1,74 @@
+{
+  "themes": [
+    {
+      "name": "Classic Halloween",
+      "sky_top": [25, 15, 45],
+      "sky_bottom": [15, 5, 25],
+      "dark_land": [40, 80, 30],
+      "lighter_land": [60, 120, 45],
+      "tree_trunk": [140, 90, 50],
+      "tree_dark": [100, 60, 30],
+      "tree_leaves": [40, 150, 40],
+      "tree_dark_leaves": [20, 100, 20],
+      "moon_glow": [255, 255, 200],
+      "path_color": [160, 140, 100],
+      "bat_color": [80, 40, 80]
+    },
+    {
+      "name": "Blood Moon",
+      "sky_top": [40, 15, 15],
+      "sky_bottom": [20, 5, 5],
+      "dark_land": [60, 20, 20],
+      "lighter_land": [90, 30, 30],
+      "tree_trunk": [120, 60, 40],
+      "tree_dark": [80, 40, 20],
+      "tree_leaves": [80, 40, 40],
+      "tree_dark_leaves": [60, 20, 20],
+      "moon_glow": [255, 100, 100],
+      "path_color": [140, 100, 80],
+      "bat_color": [120, 60, 60]
+    },
+    {
+      "name": "Toxic Swamp",
+      "sky_top": [20, 40, 15],
+      "sky_bottom": [10, 20, 5],
+      "dark_land": [30, 60, 20],
+      "lighter_land": [50, 100, 30],
+      "tree_trunk": [100, 120, 60],
+      "tree_dark": [60, 80, 40],
+      "tree_leaves": [60, 150, 40],
+      "tree_dark_leaves": [40, 100, 20],
+      "moon_glow": [150, 255, 100],
+      "path_color": [120, 140, 80],
+      "bat_color": [100, 120, 60]
+    },
+    {
+      "name": "Midnight Frost",
+      "sky_top": [15, 25, 45],
+      "sky_bottom": [5, 15, 25],
+      "dark_land": [30, 40, 60],
+      "lighter_land": [50, 60, 90],
+      "tree_trunk": [80, 90, 120],
+      "tree_dark": [50, 60, 80],
+      "tree_leaves": [40, 80, 120],
+      "tree_dark_leaves": [20, 50, 80],
+      "moon_glow": [180, 200, 255],
+      "path_color": [100, 120, 160],
+      "bat_color": [80, 90, 120]
+    },
+    {
+      "name": "Violet Nightmare",
+      "sky_top": [45, 15, 60],
+      "sky_bottom": [25, 5, 30],
+      "dark_land": [50, 20, 60],
+      "lighter_land": [80, 30, 90],
+      "tree_trunk": [120, 80, 140],
+      "tree_dark": [80, 50, 90],
+      "tree_leaves": [100, 40, 120],
+      "tree_dark_leaves": [60, 20, 80],
+      "moon_glow": [220, 150, 255],
+      "path_color": [140, 100, 160],
+      "bat_color": [100, 60, 120]
+    }
+  ]
+}
