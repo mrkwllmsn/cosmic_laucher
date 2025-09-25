@@ -64,28 +64,28 @@ The compiled `.uf2` file will be available in the `build/` directory.
 - **Retro Aesthetics**: Classic arcade-inspired visuals and gameplay
 
 ## 📸 Screenshots
-![Menu](screenshots/menu.jpeg)
+![Menu](screenshots/menu.png)
 *Main launcher menu interface*
 
-![P-Type Game](screenshots/p-type.jpeg)
+![P-Type Game](screenshots/p-type.png)
 *P-TYPE - R-Type inspired space shooter*
 
-![Race Game 1](screenshots/racer1.jpeg)
+![Race Game 1](screenshots/racer1.png)
 *RACE - OutRun-inspired racing*
 
-![Race Game 2](screenshots/racer2.jpeg)
+![Race Game 2](screenshots/racer2.png)
 *RACE - Racing in a tunnel*
 
-![Race Game 3](screenshots/racer3.jpeg)
+![Race Game 3](screenshots/racer3.png)
 *RACE - Racing in the dark*
 
-![Frogger Game](screenshots/frogger.jpeg)
+![Frogger Game](screenshots/frogger.png)
 *FROG - Cosmic Frogger gameplay*
 
-![Qix Game](screenshots/qix.jpeg)
+![Qix Game](screenshots/qix.png)
 *QIX - Territory control game*
 
-![Blocks Game](screenshots/blocks.jpeg)
+![Blocks Game](screenshots/blocks.png)
 *BLOCKS - Tetris-style puzzle game*
 
 
