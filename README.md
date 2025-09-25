@@ -12,6 +12,13 @@ A collection of retro-inspired games and demos for the Pimoroni Cosmic Unicorn 3
 - **BLOCKS** - Tetris-style block puzzle game
 - **PRETTY** - Colorful visual effects and animations
 
+## 🎬 Video Demo
+
+[![Cosmic Launcher Demo](https://img.youtube.com/vi/TSXKi2c0sg8/0.jpg)](https://www.youtube.com/watch?v=TSXKi2c0sg8)
+
+*Click to watch the Cosmic Launcher SPOOK Halloween Animation in action!*
+
+
 
 ## 🚀 Quick Start
 
