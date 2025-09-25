@@ -12,31 +12,6 @@ A collection of retro-inspired games and demos for the Pimoroni Cosmic Unicorn 3
 - **BLOCKS** - Tetris-style block puzzle game
 - **PRETTY** - Colorful visual effects and animations
 
-## 📸 Screenshots
-![Menu](screenshots/menu.jpeg)
-*Main launcher menu interface*
-
-![P-Type Game](screenshots/p-type.jpeg)
-*P-TYPE - R-Type inspired space shooter*
-
-![Race Game 1](screenshots/racer1.jpeg)
-*RACE - OutRun-inspired racing*
-
-![Race Game 2](screenshots/racer2.jpeg)
-*RACE - Racing in a tunnel*
-
-![Race Game 3](screenshots/racer3.jpeg)
-*RACE - Racing in the dark*
-
-![Frogger Game](screenshots/frogger.jpeg)
-*FROG - Cosmic Frogger gameplay*
-
-![Qix Game](screenshots/qix.jpeg)
-*QIX - Territory control game*
-
-![Blocks Game](screenshots/blocks.jpeg)
-*BLOCKS - Tetris-style puzzle game*
-
 
 ## 🚀 Quick Start
 
@@ -80,6 +55,33 @@ The compiled `.uf2` file will be available in the `build/` directory.
 - **Multiple Game Modes**: Each game supports both demo and interactive modes
 - **Optimized Performance**: Smooth 60fps gameplay on 32×32 LED matrix
 - **Retro Aesthetics**: Classic arcade-inspired visuals and gameplay
+
+## 📸 Screenshots
+![Menu](screenshots/menu.jpeg)
+*Main launcher menu interface*
+
+![P-Type Game](screenshots/p-type.jpeg)
+*P-TYPE - R-Type inspired space shooter*
+
+![Race Game 1](screenshots/racer1.jpeg)
+*RACE - OutRun-inspired racing*
+
+![Race Game 2](screenshots/racer2.jpeg)
+*RACE - Racing in a tunnel*
+
+![Race Game 3](screenshots/racer3.jpeg)
+*RACE - Racing in the dark*
+
+![Frogger Game](screenshots/frogger.jpeg)
+*FROG - Cosmic Frogger gameplay*
+
+![Qix Game](screenshots/qix.jpeg)
+*QIX - Territory control game*
+
+![Blocks Game](screenshots/blocks.jpeg)
+*BLOCKS - Tetris-style puzzle game*
+
+
 
 ## 🤝 Contributing
 
