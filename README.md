@@ -25,3 +25,14 @@ The Games and Demos are:
 
 
 Most of these will play as an animation until you start interacting with the buttons. Hold D to return to Menu.
+
+
+## Installation: 
+Download the uf2 file from build here: https://github.com/mrkwllmsn/cosmic_laucher/blob/main/build/cosmic_launcher.uf2
+
+Upload it to your pico. 
+
+
+## Building 
+You need the pico-sdk and associated pimoroni setup for building c. If you can build their c++ examples, you should be good to go to build this. 
+
