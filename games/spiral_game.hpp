@@ -162,9 +162,21 @@ private:
         // Draw connecting lines with gradient colors or length-based colors
         if (show_lines && point_count > 1) {
             for (int i = 0; i < point_count - 1; i++) {
+                // Simple line drawing using Bresenham-style algorithm
+                int x0 = points[i].x;
+                int y0 = points[i].y;
+                int x1 = points[i + 1].x;
+                int y1 = points[i + 1].y;
+
+                // Skip if either endpoint is off-screen
+                if (x0 < 0 || x0 >= DISPLAY_WIDTH || y0 < 0 || y0 >= DISPLAY_HEIGHT ||
+                    x1 < 0 || x1 >= DISPLAY_WIDTH || y1 < 0 || y1 >= DISPLAY_HEIGHT) {
+                    continue;
+                }
+
                 // Calculate line length
-                int dx = points[i + 1].x - points[i].x;
-                int dy = points[i + 1].y - points[i].y;
+                int dx = x1 - x0;
+                int dy = y1 - y0;
                 float length = sqrt(dx * dx + dy * dy);
 
                 // Skip lines that are too long (likely wrapping around or going off-screen)
@@ -191,14 +203,8 @@ private:
 
                 gfx->set_pen(r, g, b);
 
-                // Simple line drawing using Bresenham-style algorithm
-                int x0 = points[i].x;
-                int y0 = points[i].y;
-                int x1 = points[i + 1].x;
-                int y1 = points[i + 1].y;
-
-                int adx = abs(x1 - x0);
-                int ady = abs(y1 - y0);
+                int adx = abs(dx);
+                int ady = abs(dy);
                 int sx = x0 < x1 ? 1 : -1;
                 int sy = y0 < y1 ? 1 : -1;
                 int err = adx - ady;
@@ -240,7 +246,7 @@ private:
             // 70% chance of slow, 30% chance of faster
             int speed_choice = rand() % 10;
             if (speed_choice < 7) {
-                anim_speed = 0.005f + (rand() % 10) * 0.0005f;  // 0.005 - 0.01 (very slow)
+                anim_speed = 0.05f + (rand() % 10) * 0.0005f;  // 0.005 - 0.01 (very slow)
             } else {
                 anim_speed = 0.02f + (rand() % 10) * 0.001f;    // 0.02 - 0.03 (moderate)
             }

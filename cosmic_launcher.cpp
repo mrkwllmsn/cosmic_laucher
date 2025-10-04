@@ -18,6 +18,7 @@
 #include "games/demo_mode_game.hpp"
 #include "games/spiral_game.hpp"
 #include "games/circles_game.hpp"
+#include "games/doom_game.hpp"
 #include "wifi_config.hpp"
 
 using namespace pimoroni;
@@ -62,6 +63,7 @@ void initializeLauncher() {
     menu.addGame("QIX", "Claim territory while avoiding the Qix!", std::make_unique<QixGame>());
     menu.addGame("BLOCKS", "Classic block puzzle", std::make_unique<TetrisGame>());
     menu.addGame("FLIGHT", "Fly over ocean, shoot enemies", std::make_unique<AfterburnerGame>());
+    menu.addGame("DOOM", "Retro 3D raycasting shooter", std::make_unique<DoomGame>());
     menu.addGame("BLOBS", "Visual shader effects", std::make_unique<ShaderEffectsGame>());
     menu.addGame("SPIRAL", "Mathematical number spiral", std::make_unique<SpiralGame>());
     menu.addGame("CIRCLE", "Recursive circle patterns", std::make_unique<CirclesGame>());
