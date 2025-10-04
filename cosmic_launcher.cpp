@@ -16,6 +16,7 @@
 #include "games/afterburner_game.hpp"
 #include "games/donkey_kong_game.hpp"
 #include "games/demo_mode_game.hpp"
+#include "games/spiral_game.hpp"
 #include "wifi_config.hpp"
 
 using namespace pimoroni;
@@ -61,6 +62,7 @@ void initializeLauncher() {
     menu.addGame("BLOCKS", "Classic block puzzle", std::make_unique<TetrisGame>());
     menu.addGame("ABURN", "Fly over ocean, shoot enemies", std::make_unique<AfterburnerGame>());
     menu.addGame("PRETTY", "Visual shader effects", std::make_unique<ShaderEffectsGame>());
+    menu.addGame("SPIRAL", "Mathematical number spiral", std::make_unique<SpiralGame>());
 
     // Setup demo mode with all games (except demo itself)
     std::vector<GameBase*> demo_games = menu.getAllGames();

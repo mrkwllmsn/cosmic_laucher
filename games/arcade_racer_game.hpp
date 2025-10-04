@@ -99,8 +99,8 @@ private:
 public:
     std::vector<Pen> greens;
     
-    Mountain(PicoGraphics& graphics, float waveM = 4, int width = 32, int height = 32) 
-        : gfx(graphics), pCurve(-1), waveMod(waveM), currentHillHeight(0),
+    Mountain(PicoGraphics& graphics, float waveM = 4, int width = 32, int height = 32)
+        : gfx(graphics), pCurve(-1), waveMod(waveM), currentHillHeight(waveM),
           w(width), h(height), yoffset(12) {
         lastPoint = Point(0, 16);
         createPalette();
@@ -1735,6 +1735,17 @@ public:
         current = (current + 1) % 14;  // 14 total themes
         setTheme((Theme)current);
     }
+
+    void setRandomTheme() {
+        // Pick a random theme
+        int randomTheme = rand() % 14;
+        setTheme((Theme)randomTheme);
+
+        // Ensure mountains are visible at start
+        if (hillHeight == 0) {
+            hillHeight = 6;  // Default visible mountain height
+        }
+    }
     
     void updateAutoThemeChange() {
         // Track distance traveled since last theme change
@@ -2683,12 +2694,15 @@ public:
     void init(PicoGraphics_PenRGB888& graphics, CosmicUnicorn& cosmic_unicorn) override {
         gfx = &graphics;
         cosmic = &cosmic_unicorn;
-        
+
         cosmic->set_brightness(0.8f);
-        
-        road = std::make_unique<Road>(graphics, CosmicUnicorn::WIDTH, CosmicUnicorn::HEIGHT);
-        
+
         srand(time_us_64());
+
+        road = std::make_unique<Road>(graphics, CosmicUnicorn::WIDTH, CosmicUnicorn::HEIGHT);
+
+        // Set random theme with visible mountains at start
+        road->setRandomTheme();
     }
     
     bool debounce(uint32_t current_time) {
