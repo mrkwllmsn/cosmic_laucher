@@ -3,8 +3,7 @@
 #include <memory>
 
 #include "pico/stdlib.h"
-#include "libraries/pico_graphics/pico_graphics.hpp"
-#include "cosmic_unicorn.hpp"
+#include "libraries/cosmic_unicorn/cosmic_unicorn.hpp"
 
 #include "menu.hpp"
 #include "games/arcade_racer_game.hpp"
@@ -14,6 +13,8 @@
 #include "games/halloween_game.hpp"
 #include "games/side_scroller_game.hpp"
 #include "games/qix_game.hpp"
+#include "games/afterburner_game.hpp"
+#include "games/donkey_kong_game.hpp"
 #include "wifi_config.hpp"
 
 using namespace pimoroni;
@@ -50,8 +51,10 @@ void initializeLauncher() {
     menu.addGame("P-TYPE", "Side-scrolling space shooter", std::make_unique<SideScrollerGame>());
     menu.addGame("RACE", "Fast-paced racing game", std::make_unique<ArcadeRacerGame>());
     menu.addGame("FROG", "Cross roads and rivers", std::make_unique<FroggerGame>());
+    menu.addGame("KONG", "Climb to save the princess!", std::make_unique<DonkeyKongGame>());
     menu.addGame("QIX", "Claim territory while avoiding the Qix!", std::make_unique<QixGame>());
     menu.addGame("BLOCKS", "Classic block puzzle", std::make_unique<TetrisGame>());
+    menu.addGame("ABURN", "Fly over ocean, shoot enemies", std::make_unique<AfterburnerGame>());
     menu.addGame("PRETTY", "Visual shader effects", std::make_unique<ShaderEffectsGame>());
 }
 

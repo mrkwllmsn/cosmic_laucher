@@ -1,0 +1,5 @@
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm-install/pioasm/pioasm
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm-install/pioasm/pioasmTargets.cmake
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm-install/pioasm/pioasmTargets-release.cmake
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm-install/pioasm/pioasmConfig.cmake
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm-install/pioasm/pioasmConfigVersion.cmake

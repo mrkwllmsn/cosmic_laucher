@@ -1,0 +1,14 @@
+# Target labels
+ picotoolBuild
+# Source files and their labels
+/home/mark/Projects/pico-projects/cosmic_laucher/build/CMakeFiles/picotoolBuild
+/home/mark/Projects/pico-projects/cosmic_laucher/build/CMakeFiles/picotoolBuild.rule
+/home/mark/Projects/pico-projects/cosmic_laucher/build/CMakeFiles/picotoolBuild-complete.rule
+/home/mark/Projects/pico-projects/cosmic_laucher/build/picotool/src/picotoolBuild-stamp/picotoolBuild-build.rule
+/home/mark/Projects/pico-projects/cosmic_laucher/build/picotool/src/picotoolBuild-stamp/picotoolBuild-configure.rule
+/home/mark/Projects/pico-projects/cosmic_laucher/build/picotool/src/picotoolBuild-stamp/picotoolBuild-download.rule
+/home/mark/Projects/pico-projects/cosmic_laucher/build/picotool/src/picotoolBuild-stamp/picotoolBuild-install.rule
+/home/mark/Projects/pico-projects/cosmic_laucher/build/picotool/src/picotoolBuild-stamp/picotoolBuild-mkdir.rule
+/home/mark/Projects/pico-projects/cosmic_laucher/build/picotool/src/picotoolBuild-stamp/picotoolBuild-patch.rule
+/home/mark/Projects/pico-projects/cosmic_laucher/build/picotool/src/picotoolBuild-stamp/picotoolBuild-test.rule
+/home/mark/Projects/pico-projects/cosmic_laucher/build/picotool/src/picotoolBuild-stamp/picotoolBuild-update.rule

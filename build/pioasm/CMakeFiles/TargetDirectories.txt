@@ -1,0 +1,7 @@
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm/CMakeFiles/pioasm.dir
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm/CMakeFiles/edit_cache.dir
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm/CMakeFiles/rebuild_cache.dir
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm/CMakeFiles/list_install_components.dir
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm/CMakeFiles/install.dir
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm/CMakeFiles/install/local.dir
+/home/mark/Projects/pico-projects/cosmic_laucher/build/pioasm/CMakeFiles/install/strip.dir

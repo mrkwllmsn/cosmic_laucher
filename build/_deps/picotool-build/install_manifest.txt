@@ -1,0 +1,7 @@
+/home/mark/Projects/pico-projects/cosmic_laucher/build/_deps/picotool/picotool
+/home/mark/Projects/pico-projects/cosmic_laucher/build/_deps/picotool/picotoolTargets.cmake
+/home/mark/Projects/pico-projects/cosmic_laucher/build/_deps/picotool/picotoolTargets-release.cmake
+/home/mark/Projects/pico-projects/cosmic_laucher/build/_deps/picotool/picotoolConfig.cmake
+/home/mark/Projects/pico-projects/cosmic_laucher/build/_deps/picotool/picotoolConfigVersion.cmake
+/home/mark/Projects/pico-projects/cosmic_laucher/build/_deps/picotool/enc_bootloader.elf
+/home/mark/Projects/pico-projects/cosmic_laucher/build/_deps/picotool/enc_bootloader_mbedtls.elf
