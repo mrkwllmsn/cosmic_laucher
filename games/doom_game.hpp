@@ -58,6 +58,31 @@ private:
     int muzzleFlash = 0;  // Muzzle flash animation counter
     int gunRecoil = 0;    // Gun recoil animation counter
 
+    // Enemy system
+    struct Enemy {
+        float x, y;
+        bool active;
+        int health;
+        uint32_t animFrame;
+        uint32_t lastAnimTime;
+    };
+    static constexpr int MAX_ENEMIES = 5;
+    Enemy enemies[MAX_ENEMIES];
+    uint32_t lastSpawnTime = 0;
+    static constexpr uint32_t SPAWN_INTERVAL = 3000;  // 3 seconds
+
+    // Particle system for explosions
+    struct Particle {
+        float x, y;
+        float vx, vy;
+        uint8_t r, g, b;
+        uint32_t lifetime;
+        uint32_t spawnTime;
+        bool active;
+    };
+    static constexpr int MAX_PARTICLES = 30;
+    Particle particles[MAX_PARTICLES];
+
     struct Ray {
         float distance;
         bool isVertical;
@@ -93,6 +118,36 @@ private:
         }
 
         return {maxDepth, false, 0, 0};
+    }
+
+    // Check if there's a wall between two points
+    bool hasWallBetween(float x1, float y1, float x2, float y2) {
+        float dx = x2 - x1;
+        float dy = y2 - y1;
+        float dist = sqrtf(dx * dx + dy * dy);
+
+        float stepSize = 2.0f;
+        int steps = (int)(dist / stepSize);
+        if (steps == 0) return false;
+
+        for (int i = 0; i <= steps; i++) {
+            float t = (float)i / steps;
+            float checkX = x1 + dx * t;
+            float checkY = y1 + dy * t;
+
+            int gridX = (int)(checkX / TILE_SIZE);
+            int gridY = (int)(checkY / TILE_SIZE);
+
+            if (gridY < 0 || gridY >= MAP_SIZE || gridX < 0 || gridX >= MAP_SIZE) {
+                return true;
+            }
+
+            if (map[gridY][gridX] == 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // Check if position is valid (not in wall)
@@ -154,10 +209,54 @@ private:
     void updateAI() {
         uint32_t currentTime = time_us_32() / 1000;  // Convert to ms
 
-        // Shooting logic - shoot periodically
-        if (currentTime - shootTimer > (uint32_t)(800 + (rand() % 1500))) {
-            shoot();
-            shootTimer = currentTime;
+        // Check for nearby visible enemies
+        float closestEnemyDist = 1000.0f;
+        float closestEnemyAngle = 0.0f;
+        bool foundNearbyEnemy = false;
+
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            if (enemies[i].active) {
+                float dx = enemies[i].x - playerX;
+                float dy = enemies[i].y - playerY;
+                float dist = sqrtf(dx * dx + dy * dy);
+
+                // Check if enemy is close enough and visible (no wall between)
+                if (dist < 200.0f && !hasWallBetween(playerX, playerY, enemies[i].x, enemies[i].y)) {
+                    if (dist < closestEnemyDist) {
+                        closestEnemyDist = dist;
+                        closestEnemyAngle = atan2f(dy, dx);
+                        foundNearbyEnemy = true;
+                    }
+                }
+            }
+        }
+
+        // If there's a nearby enemy, turn to face it and shoot
+        if (foundNearbyEnemy && !isRotating) {
+            float angleDiff = closestEnemyAngle - playerAngle;
+
+            // Normalize angle difference
+            while (angleDiff > 3.14159f) angleDiff -= 6.28318f;
+            while (angleDiff < -3.14159f) angleDiff += 6.28318f;
+
+            // If enemy is roughly in front, shoot at it
+            if (fabsf(angleDiff) < 0.3f) {
+                // Shoot more frequently when facing enemy
+                if (currentTime - shootTimer > (uint32_t)(400 + (rand() % 600))) {
+                    shoot();
+                    shootTimer = currentTime;
+                }
+            } else {
+                // Turn to face the enemy
+                targetAngle = closestEnemyAngle;
+                isRotating = true;
+            }
+        } else {
+            // Normal shooting when no nearby enemy
+            if (currentTime - shootTimer > (uint32_t)(800 + (rand() % 1500))) {
+                shoot();
+                shootTimer = currentTime;
+            }
         }
 
         // Rotation logic - do this first
@@ -172,7 +271,7 @@ private:
                 playerAngle = targetAngle;
                 isRotating = false;
             } else {
-                // Faster rotation when avoiding walls
+                // Faster rotation when avoiding walls or chasing enemies
                 playerAngle += (angleDiff > 0 ? 1 : -1) * ROTATION_SPEED * 3.0f;
             }
         }
@@ -227,6 +326,167 @@ private:
             targetAngle = ((rand() % 360) * 3.14159f) / 180.0f;
             isRotating = true;
             rotateTimer = currentTime;
+        }
+    }
+
+    // Spawn an enemy at a random location away from player
+    void spawnEnemy() {
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            if (!enemies[i].active) {
+                // Find a valid spawn location away from player
+                int attempts = 0;
+                while (attempts < 20) {
+                    int gridX = 1 + (rand() % (MAP_SIZE - 2));
+                    int gridY = 1 + (rand() % (MAP_SIZE - 2));
+
+                    float spawnX = gridX * TILE_SIZE + TILE_SIZE / 2;
+                    float spawnY = gridY * TILE_SIZE + TILE_SIZE / 2;
+
+                    float dx = spawnX - playerX;
+                    float dy = spawnY - playerY;
+                    float dist = sqrtf(dx * dx + dy * dy);
+
+                    // Must be in empty space and far from player
+                    if (map[gridY][gridX] == 0 && dist > TILE_SIZE * 3) {
+                        enemies[i].x = spawnX;
+                        enemies[i].y = spawnY;
+                        enemies[i].active = true;
+                        enemies[i].health = 2;
+                        enemies[i].animFrame = 0;
+                        enemies[i].lastAnimTime = time_us_32() / 1000;
+                        break;
+                    }
+                    attempts++;
+                }
+                break;
+            }
+        }
+    }
+
+    // Update enemies - move toward player
+    void updateEnemies() {
+        uint32_t currentTime = time_us_32() / 1000;
+
+        // Spawn enemies periodically
+        if (currentTime - lastSpawnTime > SPAWN_INTERVAL) {
+            spawnEnemy();
+            lastSpawnTime = currentTime;
+        }
+
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            if (enemies[i].active) {
+                // Update animation
+                if (currentTime - enemies[i].lastAnimTime > 200) {
+                    enemies[i].animFrame = (enemies[i].animFrame + 1) % 4;
+                    enemies[i].lastAnimTime = currentTime;
+                }
+
+                // Move toward player
+                float dx = playerX - enemies[i].x;
+                float dy = playerY - enemies[i].y;
+                float dist = sqrtf(dx * dx + dy * dy);
+
+                if (dist > 10.0f) {
+                    float moveSpeed = 0.3f;
+                    float newX = enemies[i].x + (dx / dist) * moveSpeed;
+                    float newY = enemies[i].y + (dy / dist) * moveSpeed;
+
+                    // Only move if position is valid
+                    if (isValidPosition(newX, newY)) {
+                        enemies[i].x = newX;
+                        enemies[i].y = newY;
+                    }
+                }
+            }
+        }
+    }
+
+    // Check bullet-enemy collisions
+    void checkCollisions() {
+        for (int b = 0; b < MAX_BULLETS; b++) {
+            if (!bullets[b].active) continue;
+
+            for (int e = 0; e < MAX_ENEMIES; e++) {
+                if (!enemies[e].active) continue;
+
+                float dx = bullets[b].x - enemies[e].x;
+                float dy = bullets[b].y - enemies[e].y;
+                float dist = sqrtf(dx * dx + dy * dy);
+
+                if (dist < 15.0f) {  // Hit!
+                    bullets[b].active = false;
+                    enemies[e].health--;
+
+                    if (enemies[e].health <= 0) {
+                        // Enemy dies - create explosion
+                        spawnExplosion(enemies[e].x, enemies[e].y);
+                        enemies[e].active = false;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    // Create particle explosion
+    void spawnExplosion(float x, float y) {
+        uint32_t currentTime = time_us_32() / 1000;
+
+        for (int i = 0; i < MAX_PARTICLES; i++) {
+            if (!particles[i].active) {
+                // Create particle with random velocity
+                float angle = (rand() % 360) * 0.0174533f;
+                float speed = 0.5f + (rand() % 100) / 50.0f;
+
+                particles[i].x = x;
+                particles[i].y = y;
+                particles[i].vx = cosf(angle) * speed;
+                particles[i].vy = sinf(angle) * speed;
+
+                // Random colors - red, orange, yellow
+                int colorChoice = rand() % 3;
+                if (colorChoice == 0) {
+                    particles[i].r = 255; particles[i].g = 0; particles[i].b = 0;
+                } else if (colorChoice == 1) {
+                    particles[i].r = 255; particles[i].g = 128; particles[i].b = 0;
+                } else {
+                    particles[i].r = 255; particles[i].g = 255; particles[i].b = 0;
+                }
+
+                particles[i].lifetime = 500 + (rand() % 500);
+                particles[i].spawnTime = currentTime;
+                particles[i].active = true;
+
+                // Only create about 15-20 particles per explosion
+                static int particleCount = 0;
+                particleCount++;
+                if (particleCount >= 18) {
+                    particleCount = 0;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Update particles
+    void updateParticles() {
+        uint32_t currentTime = time_us_32() / 1000;
+
+        for (int i = 0; i < MAX_PARTICLES; i++) {
+            if (particles[i].active) {
+                // Update position
+                particles[i].x += particles[i].vx;
+                particles[i].y += particles[i].vy;
+
+                // Apply slight drag
+                particles[i].vx *= 0.95f;
+                particles[i].vy *= 0.95f;
+
+                // Check lifetime
+                if (currentTime - particles[i].spawnTime > particles[i].lifetime) {
+                    particles[i].active = false;
+                }
+            }
         }
     }
 
@@ -340,6 +600,175 @@ private:
         }
     }
 
+    // Draw enemies in 3D view with sprites
+    void drawEnemies(PicoGraphics_PenRGB888& gfx) {
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            if (enemies[i].active) {
+                // Calculate enemy position relative to player
+                float dx = enemies[i].x - playerX;
+                float dy = enemies[i].y - playerY;
+                float enemyDist = sqrtf(dx * dx + dy * dy);
+
+                // Calculate angle relative to player view
+                float enemyAngle = atan2f(dy, dx);
+                float angleDiff = enemyAngle - playerAngle;
+
+                // Normalize angle
+                while (angleDiff > 3.14159f) angleDiff -= 6.28318f;
+                while (angleDiff < -3.14159f) angleDiff += 6.28318f;
+
+                // Only draw if enemy is in front of player, within FOV, and not blocked by a wall
+                if (enemyDist > 5.0f && fabsf(angleDiff) < FOV / 2.0f + 0.5f) {
+                    // Check if there's a wall between player and enemy
+                    if (hasWallBetween(playerX, playerY, enemies[i].x, enemies[i].y)) {
+                        continue;  // Skip this enemy, it's behind a wall
+                    }
+
+                    // Calculate screen X position
+                    int screenX = WIDTH / 2 + (int)((angleDiff / (FOV / 2.0f)) * (WIDTH / 2));
+
+                    // Calculate size based on distance - but don't make too small
+                    int spriteSize = (int)(400.0f / enemyDist);
+                    if (spriteSize < 4) spriteSize = 4;   // Minimum size for detail
+                    if (spriteSize > 20) spriteSize = 20;
+
+                    int screenY = HEIGHT / 2;
+
+                    // Draw enemy sprite - floating skull/demon design
+                    // Animation affects the "pulsing" of the sprite
+                    int pulse = (enemies[i].animFrame % 2 == 0) ? 0 : 1;
+
+                    // Body color - dark red/purple demon
+                    uint8_t bodyR = 150 + pulse * 20;
+                    uint8_t bodyG = 0;
+                    uint8_t bodyB = 50 + pulse * 30;
+
+                    // Eyes - bright glowing effect
+                    uint8_t eyeR = 255;
+                    uint8_t eyeG = 50 + pulse * 100;
+                    uint8_t eyeB = 0;
+
+                    Pen bodyPen = gfx.create_pen(bodyR, bodyG, bodyB);
+                    Pen eyePen = gfx.create_pen(eyeR, eyeG, eyeB);
+                    Pen darkPen = gfx.create_pen(bodyR / 2, 0, bodyB / 2);
+
+                    // Draw body (rounded shape)
+                    gfx.set_pen(bodyPen);
+                    for (int py = -spriteSize/2; py <= spriteSize/2; py++) {
+                        for (int px = -spriteSize/2; px <= spriteSize/2; px++) {
+                            // Circular body shape
+                            if (px*px + py*py <= (spriteSize/2)*(spriteSize/2)) {
+                                int x = screenX + px;
+                                int y = screenY + py;
+                                if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
+                                    gfx.pixel(Point(x, y));
+                                }
+                            }
+                        }
+                    }
+
+                    // Draw eyes (always visible, with detail even when small)
+                    gfx.set_pen(eyePen);
+                    int eyeOffset = spriteSize / 4;
+                    if (eyeOffset < 1) eyeOffset = 1;
+                    int eyeY = screenY - spriteSize / 6;
+
+                    // Left eye
+                    int leftEyeX = screenX - eyeOffset;
+                    gfx.pixel(Point(leftEyeX, eyeY));
+                    if (spriteSize > 6) {
+                        gfx.pixel(Point(leftEyeX - 1, eyeY));
+                        gfx.pixel(Point(leftEyeX, eyeY - 1));
+                    }
+
+                    // Right eye
+                    int rightEyeX = screenX + eyeOffset;
+                    gfx.pixel(Point(rightEyeX, eyeY));
+                    if (spriteSize > 6) {
+                        gfx.pixel(Point(rightEyeX + 1, eyeY));
+                        gfx.pixel(Point(rightEyeX, eyeY - 1));
+                    }
+
+                    // Mouth/teeth (if big enough)
+                    if (spriteSize > 8) {
+                        gfx.set_pen(darkPen);
+                        int mouthY = screenY + spriteSize / 4;
+                        for (int mx = -spriteSize/5; mx <= spriteSize/5; mx++) {
+                            int x = screenX + mx;
+                            if (x >= 0 && x < WIDTH && mouthY >= 0 && mouthY < HEIGHT) {
+                                gfx.pixel(Point(x, mouthY));
+                            }
+                        }
+                    }
+
+                    // Horns/spikes on top (if big enough)
+                    if (spriteSize > 10) {
+                        gfx.set_pen(bodyPen);
+                        int hornY = screenY - spriteSize/2 - 1;
+                        gfx.pixel(Point(screenX - spriteSize/3, hornY));
+                        gfx.pixel(Point(screenX + spriteSize/3, hornY));
+                        if (spriteSize > 14) {
+                            gfx.pixel(Point(screenX - spriteSize/3, hornY - 1));
+                            gfx.pixel(Point(screenX + spriteSize/3, hornY - 1));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Draw particles in 3D view
+    void drawParticles(PicoGraphics_PenRGB888& gfx) {
+        uint32_t currentTime = time_us_32() / 1000;
+
+        for (int i = 0; i < MAX_PARTICLES; i++) {
+            if (particles[i].active) {
+                // Calculate particle position relative to player
+                float dx = particles[i].x - playerX;
+                float dy = particles[i].y - playerY;
+                float particleDist = sqrtf(dx * dx + dy * dy);
+
+                // Calculate angle relative to player view
+                float particleAngle = atan2f(dy, dx);
+                float angleDiff = particleAngle - playerAngle;
+
+                // Normalize angle
+                while (angleDiff > 3.14159f) angleDiff -= 6.28318f;
+                while (angleDiff < -3.14159f) angleDiff += 6.28318f;
+
+                // Only draw if particle is in front of player and within FOV
+                if (particleDist > 1.0f && fabsf(angleDiff) < FOV / 2.0f + 0.5f) {
+                    // Calculate screen X position
+                    int screenX = WIDTH / 2 + (int)((angleDiff / (FOV / 2.0f)) * (WIDTH / 2));
+
+                    // Calculate screen Y position based on distance (with slight upward float)
+                    float ageRatio = (float)(currentTime - particles[i].spawnTime) / particles[i].lifetime;
+                    int screenY = HEIGHT / 2 - (int)(ageRatio * 10.0f);  // Rise up as they age
+
+                    // Fade out over time
+                    uint8_t alpha = (uint8_t)(255 * (1.0f - ageRatio));
+                    uint8_t r = (particles[i].r * alpha) / 255;
+                    uint8_t g = (particles[i].g * alpha) / 255;
+                    uint8_t b = (particles[i].b * alpha) / 255;
+
+                    Pen particlePen = gfx.create_pen(r, g, b);
+                    gfx.set_pen(particlePen);
+
+                    // Draw particle
+                    if (screenX >= 0 && screenX < WIDTH && screenY >= 0 && screenY < HEIGHT) {
+                        gfx.pixel(Point(screenX, screenY));
+
+                        // Larger particles when close
+                        if (particleDist < 100.0f) {
+                            if (screenX > 0) gfx.pixel(Point(screenX - 1, screenY));
+                            if (screenX < WIDTH - 1) gfx.pixel(Point(screenX + 1, screenY));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     void drawHUD(PicoGraphics_PenRGB888& gfx) {
         // Crosshair - proper + shape with center pixel missing
         Pen crosshairPen = gfx.create_pen(200, 200, 200);
@@ -444,19 +873,35 @@ public:
         }
         muzzleFlash = 0;
         gunRecoil = 0;
+
+        // Initialize enemies
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            enemies[i].active = false;
+        }
+        lastSpawnTime = time_us_32() / 1000;
+
+        // Initialize particles
+        for (int i = 0; i < MAX_PARTICLES; i++) {
+            particles[i].active = false;
+        }
     }
 
     bool update() override {
         updateAI();
         updateBullets();
+        updateEnemies();
+        updateParticles();
+        checkCollisions();
         return !shouldExit;  // Return false to exit
     }
 
     void render(PicoGraphics_PenRGB888& graphics) override {
-        // Draw from back to front
+        // Draw from back to front (painter's algorithm)
         drawSkyAndFloor(graphics);
         drawWalls(graphics);
-        drawBullets(graphics);  // Draw bullets in 3D view
+        drawParticles(graphics);  // Draw explosion particles
+        drawEnemies(graphics);     // Draw enemies in 3D view
+        drawBullets(graphics);     // Draw bullets in 3D view
         drawHUD(graphics);
     }
 
