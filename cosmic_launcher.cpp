@@ -53,14 +53,13 @@ void initializeLauncher() {
 #endif
 
     cosmic_unicorn.init();
-    cosmic_unicorn.set_brightness(0.9f);
 
     // Initialize graphics
     graphics.set_pen(graphics.create_pen(0, 0, 0));
     graphics.clear();
 
-    // Initialize menu
-    menu.init(graphics);
+    // Initialize menu with cosmic_unicorn pointer for brightness control
+    menu.init(graphics, &cosmic_unicorn);
 
     // Create demo mode game
     auto demo_game = std::make_unique<DemoModeGame>();

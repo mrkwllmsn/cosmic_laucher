@@ -72,8 +72,12 @@ private:
     // Perlin noise implementation for smooth cloud movement
     static constexpr int NOISE_SIZE = 256;
     float noise_table[NOISE_SIZE];
-    
+
 public:
+    bool isThunderFlashing() const {
+        return thunder_flash_active;
+    }
+
     void init(PicoGraphics* graphics) {
         lightning_branches.clear();
         lightning_branches.reserve(MAX_LIGHTNING_BRANCHES);

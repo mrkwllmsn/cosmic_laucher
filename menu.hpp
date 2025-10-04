@@ -32,15 +32,20 @@ private:
     bool button_c_pressed = false;
     uint32_t last_input_time = 0;
     const uint32_t input_debounce_ms = 200;
-    
+
     // Visual properties
     Pen bg_pen, text_pen, selected_pen, title_pen;
     int scroll_offset = 0;
     float time_counter = 0.0f;
-    
+
     // Stormy background
     StormyNightScene stormy_background;
-    
+
+    // Brightness management
+    float currentBrightness = 0.7f;
+    float targetBrightness = 0.7f;
+    CosmicUnicorn* cosmic = nullptr;
+
     void drawText(PicoGraphics_PenRGB888& gfx, const char* text, int x, int y, float scale = 1.0f) {
         gfx.text(text, Point(x, y), -1, scale);
     }
@@ -75,27 +80,35 @@ public:
         return games;
     }
     
-    void init(PicoGraphics_PenRGB888& gfx) {
+    void init(PicoGraphics_PenRGB888& gfx, CosmicUnicorn* cosmic_unicorn = nullptr) {
         bg_pen = gfx.create_pen(0, 0, 20);
         text_pen = gfx.create_pen(100, 100, 255);
         selected_pen = gfx.create_pen(255, 255, 100);
         title_pen = gfx.create_pen(255, 150, 50);
-        
+
         // Set a readable font
         gfx.set_font(&font6);
-        
+
         // Initialize stormy background
         stormy_background.init(&gfx);
+
+        // Store cosmic unicorn pointer and set initial brightness
+        cosmic = cosmic_unicorn;
+        currentBrightness = 0.7f;
+        targetBrightness = 0.7f;
+        if (cosmic) {
+            cosmic->set_brightness(currentBrightness);
+        }
     }
     
     // Returns pointer to selected game if one was chosen, nullptr otherwise
     GameBase* update(bool button_a, bool button_b, bool button_c) {
         uint32_t current_time = to_ms_since_boot(get_absolute_time());
-        
+
         if (current_time - last_input_time < input_debounce_ms) {
             return nullptr;
         }
-        
+
         // Navigation - SWITCH_B for up, SWITCH_C for down
         if (button_b && !button_b_pressed) {
             button_b_pressed = true;
@@ -104,7 +117,7 @@ public:
         } else if (!button_b) {
             button_b_pressed = false;
         }
-        
+
         if (button_c && !button_c_pressed) {
             button_c_pressed = true;
             selected_index = (selected_index + 1) % menu_items.size();
@@ -112,7 +125,7 @@ public:
         } else if (!button_c) {
             button_c_pressed = false;
         }
-        
+
         // Selection
         if (button_a && !button_a_pressed) {
             button_a_pressed = true;
@@ -123,7 +136,25 @@ public:
         } else if (!button_a) {
             button_a_pressed = false;
         }
-        
+
+        // Handle brightness transitions based on lightning
+        if (stormy_background.isThunderFlashing()) {
+            currentBrightness = 1.0f;
+        } else {
+            // Smooth brightness fade back to 0.7
+            if (currentBrightness > targetBrightness) {
+                currentBrightness -= 0.05f;  // Fade down by 0.05 per frame
+                if (currentBrightness < targetBrightness) {
+                    currentBrightness = targetBrightness;
+                }
+            }
+        }
+
+        // Update cosmic unicorn brightness
+        if (cosmic) {
+            cosmic->set_brightness(currentBrightness);
+        }
+
         return nullptr;
     }
     
