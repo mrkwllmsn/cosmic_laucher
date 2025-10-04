@@ -184,3 +184,195 @@ bool useGrass1 = sin(grass_frequency + grass_movement) > 0;
 - Spans entire road width with proper perspective scaling
 - Uses alternating black/white checkered pattern
 - Animated approach from distance to create finish line effect
+
+## Failed Bluetooth Controller Integration Attempt
+
+### Overview
+An attempt was made to add Bluetooth HID gamepad support to cosmic_launcher to allow wireless controller input. The integration **failed** due to fundamental conflicts between the cosmic_unicorn library and BTstack's CYW43 initialization requirements. This section documents the attempt so future work can build on these findings.
+
+### Goal
+Enable Bluetooth Classic HID gamepad pairing with the Cosmic Unicorn, mapping controller buttons to the device's input system (A, B, C, D, volume, brightness, sleep controls).
+
+### Technical Approach
+
+#### Architecture
+- **Conditional compilation**: `ENABLE_BLUETOOTH` CMake option (default OFF)
+- **Dual-core design**: BTstack runs on core1 with blocking event loop, main application on core0
+- **Hardcoded MAC**: Controller address `E4:17:D8:19:72:66` to avoid complex pairing UI
+- **Menu-driven init**: "BT PAIR" menu option to defer Bluetooth initialization until requested
+
+#### Files Created
+1. **bluetooth/bluetooth_controller.hpp**
+   - Abstraction layer with `BluetoothButtons` structure matching Cosmic Unicorn controls
+   - Stub implementation when `ENABLE_BLUETOOTH` is disabled
+   - Public static callbacks for BTstack packet handlers
+
+2. **bluetooth/bluetooth_controller.cpp**
+   - BTstack HID host implementation
+   - Core1 entry point: `btstack_core1_entry()`
+   - Button mapping from HID report to Cosmic Unicorn controls:
+     ```cpp
+     buttons.button_a = (button_bits & 0x0001);  // A/Cross
+     buttons.button_b = (button_bits & 0x0002);  // B/Circle
+     buttons.button_c = (button_bits & 0x0004);  // X/Square
+     buttons.button_d = (button_bits & 0x0008);  // Y/Triangle
+     buttons.button_bright_up = (button_bits & 0x1000);    // D-Pad Up
+     buttons.button_bright_down = (button_bits & 0x2000);  // D-Pad Down
+     buttons.button_vol_up = (button_bits & 0x0010);    // L1/LB
+     buttons.button_vol_down = (button_bits & 0x0020);  // R1/RB
+     buttons.button_sleep = (button_bits & 0x0200) || (button_bits & 0x0100);
+     ```
+
+3. **bluetooth/config/btstack_config.h**
+   - BTstack feature configuration (ENABLE_CLASSIC, ENABLE_LE_PERIPHERAL, etc.)
+   - Buffer sizes and connection limits
+
+4. **bluetooth/config/FreeRTOSConfig.h**
+   - Minimal FreeRTOS configuration required by BTstack
+
+5. **games/bluetooth_pair_game.hpp**
+   - Menu option "BT PAIR" to trigger Bluetooth initialization on-demand
+   - Displays connection status on LED matrix
+   - Auto-exits after showing status
+
+6. **pico_extras_import.cmake**
+   - Import script for pico-extras (required for BTstack)
+
+#### CMake Configuration
+```cmake
+option(ENABLE_BLUETOOTH "Enable Bluetooth controller support" OFF)
+
+if(ENABLE_BLUETOOTH)
+    target_link_libraries(${OUTPUT_NAME}
+        pico_btstack_ble
+        pico_btstack_classic
+        pico_btstack_cyw43
+        pico_cyw43_arch_none      # Required for manual CYW43 control
+        pico_multicore
+    )
+    target_compile_definitions(${OUTPUT_NAME} PRIVATE
+        ENABLE_BLUETOOTH=1
+        CYW43_LWIP=0              # Disable lwIP to avoid netif.h dependency
+    )
+endif()
+```
+
+### Evolution of Attempts
+
+#### Attempt 1: Automatic Bluetooth Init at Startup
+- **Approach**: Initialize Bluetooth in `initializeLauncher()`
+- **Problem**: Hung at "[BT] Initializing Bluetooth controller support..."
+- **Cause**: BTstack requires blocking event loop (`btstack_run_loop_execute()`)
+
+#### Attempt 2: Move BTstack to Core1
+- **Approach**: Launch BTstack on core1 using `pico_multicore`
+- **Problem**: Still hung, no "[BT] BTstack up and running" message
+- **Cause**: Incorrect connection method (was trying gap_discoverable, needed hid_host_connect)
+
+#### Attempt 3: Hardcoded MAC Address Connection
+- **Approach**: Use `hid_host_connect(remote_addr, ...)` with hardcoded controller MAC
+- **Problem**: BTstack event loop never started
+- **Cause**: CYW43 arch library conflict
+
+#### Attempt 4: Menu-Driven Initialization
+- **Approach**: Defer Bluetooth init until user selects "BT PAIR" menu option
+- **Problem**: Device froze when selecting menu option, no console output
+- **Cause**: CYW43 initialization conflict with cosmic_unicorn library
+
+#### Attempt 5: Early CYW43 Initialization
+- **Approach**: Initialize CYW43 before `cosmic_unicorn.init()`:
+  ```cpp
+  #ifdef ENABLE_BLUETOOTH
+  if (cyw43_arch_init()) {
+      printf("Failed to initialize cyw43_arch\n");
+  }
+  #endif
+  cosmic_unicorn.init();
+  ```
+- **Problem**: **Device completely failed to boot** - black screen, no serial output
+- **Result**: Had to rebuild with `ENABLE_BLUETOOTH=OFF` to recover functionality
+
+### Root Cause Analysis
+
+**The fundamental incompatibility**: The CYW43 wireless chip can only be initialized once, but both the cosmic_unicorn library and BTstack need to control it.
+
+- **cosmic_unicorn library expects**: `pico_cyw43_arch_lwip_threadsafe_background`
+  - Auto-initializes CYW43 in background
+  - Provides lwIP networking stack
+  - Works seamlessly for WiFi/network features
+
+- **BTstack requires**: `pico_cyw43_arch_none`
+  - Manual CYW43 initialization control
+  - No lwIP (conflicts with BTstack's requirements)
+  - Necessary for Bluetooth Classic HID Host
+
+- **The conflict**:
+  - Can't link both arch libraries simultaneously
+  - Using `pico_cyw43_arch_none` breaks cosmic_unicorn's assumptions
+  - Manually calling `cyw43_arch_init()` at wrong time breaks LED matrix
+  - Using `pico_cyw43_arch_threadsafe_background` doesn't properly start BTstack
+
+### Errors Encountered
+
+1. **Compilation error**: lwip/netif.h not found
+   - Fixed by switching to `pico_cyw43_arch_none` and adding `CYW43_LWIP=0`
+
+2. **Compilation error**: Static method access violation
+   - Fixed by making `packet_handler` and `hid_host_packet_handler` public
+
+3. **Compilation error**: Abstract class instantiation
+   - Fixed by adding `getName()` and `getDescription()` to `BluetoothPairGame`
+
+4. **Runtime error**: Hang at Bluetooth initialization
+   - Attempted fix: Multicore execution (partial success)
+
+5. **Runtime error**: BTstack not starting
+   - Attempted fix: Changed connection method (no improvement)
+
+6. **Runtime error**: Freeze when selecting BT PAIR menu
+   - Attempted fix: Early CYW43 init (made it worse)
+
+7. **Critical runtime error**: Device won't boot (black screen)
+   - Recovery: Rebuild without Bluetooth support
+
+### Lessons Learned
+
+1. **CYW43 is a shared resource**: Libraries must coordinate on CYW43 arch selection
+2. **BTstack needs blocking execution**: Core1 is necessary but not sufficient
+3. **Initialization order matters**: cosmic_unicorn library has implicit CYW43 dependencies
+4. **Architecture libraries are mutually exclusive**: Can't mix arch_none with arch_lwip_*
+
+### Possible Future Approaches
+
+If Bluetooth controller support is attempted again, consider:
+
+1. **Rewrite cosmic_unicorn library**: Modify to work with `pico_cyw43_arch_none` and manual CYW43 init
+   - High effort, but provides full control
+   - Would require testing all cosmic_unicorn functionality
+
+2. **Use BLE HID instead of Classic**:
+   - BLE may have different CYW43 requirements
+   - Would require BLE-capable gamepad
+   - Different button mapping/pairing flow
+
+3. **Separate Pico for Bluetooth forwarding**:
+   - Second Pico W acts as Bluetooth-to-UART bridge
+   - Main Pico reads controller input via UART/I2C
+   - Adds hardware complexity but avoids CYW43 conflict
+
+4. **Use BTstack's poll-based arch**:
+   - Investigate `pico_cyw43_arch_poll` as middle ground
+   - May provide manual control without breaking cosmic_unicorn
+   - Requires testing compatibility
+
+5. **Fork and patch pico-extras**:
+   - Create custom arch library that satisfies both requirements
+   - Very high effort, maintenance burden
+
+### Files to Reference
+- Controller MAC address: `E4:17:D8:19:72:66`
+- Reference Bluetooth audio project: `~/Projects/pico-projects/galactic-bluetooth-audio/`
+- BTstack HID host example: `pico-extras/src/rp2_common/pico_btstack/example/hid_host_demo.c`
+
+### Conclusion
+Bluetooth controller integration is **not feasible** with the current cosmic_unicorn library architecture without significant library modifications. The CYW43 initialization conflict is a fundamental blocker that cannot be resolved through build configuration alone.

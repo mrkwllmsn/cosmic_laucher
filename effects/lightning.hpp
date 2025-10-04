@@ -32,27 +32,29 @@ private:
     
     // Customizable properties
     float spawn_chance;
+    bool auto_spawn_enabled;
     uint8_t lightning_r, lightning_g, lightning_b;
     uint8_t lightning_glow_r, lightning_glow_g, lightning_glow_b;
     float start_y_min, start_y_max;
     float target_y_min, target_y_max;
     float start_x_min, start_x_max;
-    
+
     // Callback for when lightning strikes
     LightningCallback strike_callback;
     
 public:
-    Lightning() : 
+    Lightning() :
         lightning_timer(0.0f),
         thunder_flash_timer(0.0f),
         thunder_flash_active(false),
         spawn_chance(DEFAULT_SPAWN_CHANCE),
+        auto_spawn_enabled(true),
         lightning_r(255), lightning_g(255), lightning_b(255),
         lightning_glow_r(200), lightning_glow_g(220), lightning_glow_b(255),
         start_y_min(2.0f), start_y_max(10.0f),
         target_y_min(28.0f), target_y_max(32.0f),
         start_x_min(8.0f), start_x_max(24.0f) {
-        
+
         lightning_branches.reserve(MAX_LIGHTNING_BRANCHES);
     }
     
@@ -65,6 +67,7 @@ public:
     
     // Configuration methods
     void setSpawnChance(float chance) { spawn_chance = chance; }
+    void enableAutoSpawn(bool enabled) { auto_spawn_enabled = enabled; }
     void setLightningColor(uint8_t r, uint8_t g, uint8_t b) {
         lightning_r = r; lightning_g = g; lightning_b = b;
     }
@@ -84,7 +87,7 @@ public:
     
     void update(float dt) {
         lightning_timer += dt;
-        
+
         // Update thunder flash
         if (thunder_flash_active) {
             thunder_flash_timer -= dt;
@@ -92,12 +95,12 @@ public:
                 thunder_flash_active = false;
             }
         }
-        
-        // Spawn new lightning strikes randomly
-        if ((rand() % 10000) < (spawn_chance * 10000)) {
+
+        // Spawn new lightning strikes randomly (only if auto-spawn is enabled)
+        if (auto_spawn_enabled && (rand() % 10000) < (spawn_chance * 10000)) {
             spawnLightningStrike();
         }
-        
+
         updateLightningBranches(dt);
     }
     

@@ -3,6 +3,9 @@
 #include <memory>
 
 #include "pico/stdlib.h"
+#ifdef ENABLE_BLUETOOTH
+#include "pico/cyw43_arch.h"
+#endif
 #include "libraries/cosmic_unicorn/cosmic_unicorn.hpp"
 
 #include "menu.hpp"
@@ -19,6 +22,7 @@
 #include "games/spiral_game.hpp"
 #include "games/circles_game.hpp"
 #include "games/doom_game.hpp"
+#include "games/bluetooth_pair_game.hpp"
 #include "wifi_config.hpp"
 
 using namespace pimoroni;
@@ -40,6 +44,14 @@ const uint32_t target_frame_time = 50; // 20 FPS
 
 void initializeLauncher() {
     stdio_init_all();
+
+#ifdef ENABLE_BLUETOOTH
+    // Initialize CYW43 early when Bluetooth is enabled (cyw43_arch_none requires manual init)
+    if (cyw43_arch_init()) {
+        printf("Failed to initialize cyw43_arch\n");
+    }
+#endif
+
     cosmic_unicorn.init();
     cosmic_unicorn.set_brightness(0.9f);
 
@@ -67,6 +79,9 @@ void initializeLauncher() {
     menu.addGame("BLOBS", "Visual shader effects", std::make_unique<ShaderEffectsGame>());
     menu.addGame("SPIRAL", "Mathematical number spiral", std::make_unique<SpiralGame>());
     menu.addGame("CIRCLE", "Recursive circle patterns", std::make_unique<CirclesGame>());
+#ifdef ENABLE_BLUETOOTH
+    menu.addGame("BT PAIR", "Pair Bluetooth controller", std::make_unique<BluetoothPairGame>());
+#endif
 
     // Setup demo mode with all games (except demo itself)
     std::vector<GameBase*> demo_games = menu.getAllGames();
@@ -77,7 +92,7 @@ void initializeLauncher() {
 }
 
 void readInputs(bool& button_a, bool& button_b, bool& button_c, bool& button_d,
-                bool& button_vol_up, bool& button_vol_down, 
+                bool& button_vol_up, bool& button_vol_down,
                 bool& button_bright_up, bool& button_bright_down) {
     // Read physical buttons
     bool physical_a = cosmic_unicorn.is_pressed(CosmicUnicorn::SWITCH_A);
@@ -88,6 +103,26 @@ void readInputs(bool& button_a, bool& button_b, bool& button_c, bool& button_d,
     bool physical_vol_down = cosmic_unicorn.is_pressed(CosmicUnicorn::SWITCH_VOLUME_DOWN);
     bool physical_bright_up = cosmic_unicorn.is_pressed(CosmicUnicorn::SWITCH_BRIGHTNESS_UP);
     bool physical_bright_down = cosmic_unicorn.is_pressed(CosmicUnicorn::SWITCH_BRIGHTNESS_DOWN);
+
+#ifdef ENABLE_BLUETOOTH
+    // Read Bluetooth controller buttons
+    BluetoothController* bt_controller = getBluetoothController();
+    BluetoothButtons bt_buttons;
+    if (bt_controller && bt_controller->isConnected()) {
+        bt_buttons = bt_controller->getButtons();
+    }
+
+    // Combine physical and Bluetooth inputs (OR logic)
+    button_a = physical_a || bt_buttons.button_a;
+    button_b = physical_b || bt_buttons.button_b;
+    button_c = physical_c || bt_buttons.button_c;
+    button_d = physical_d || bt_buttons.button_d;
+    button_vol_up = physical_vol_up || bt_buttons.button_vol_up;
+    button_vol_down = physical_vol_down || bt_buttons.button_vol_down;
+    button_bright_up = physical_bright_up || bt_buttons.button_bright_up;
+    button_bright_down = physical_bright_down || bt_buttons.button_bright_down;
+#else
+    // No Bluetooth support, use only physical buttons
     button_a = physical_a;
     button_b = physical_b;
     button_c = physical_c;
@@ -96,10 +131,11 @@ void readInputs(bool& button_a, bool& button_b, bool& button_c, bool& button_d,
     button_vol_down = physical_vol_down;
     button_bright_up = physical_bright_up;
     button_bright_down = physical_bright_down;
+#endif
 
-    // Read network buttons
+    // Read network buttons (disabled for now)
     // NetworkButtons network_buttons = network_handler.get_network_buttons();
-   /* 
+   /*
     // Combine physical and network inputs (OR logic)
     button_a = physical_a || network_buttons.button_a;
     button_b = physical_b || network_buttons.button_b;
@@ -109,7 +145,7 @@ void readInputs(bool& button_a, bool& button_b, bool& button_c, bool& button_d,
     button_vol_down = physical_vol_down || network_buttons.button_vol_down;
     button_bright_up = physical_bright_up || network_buttons.button_bright_up;
     button_bright_down = physical_bright_down || network_buttons.button_bright_down;
-    
+
     // Clear network buttons after reading them to prevent them from sticking
     network_handler.clear_network_buttons();
     */
@@ -152,6 +188,16 @@ void updateLauncher() {
 
     // Check for SLEEP button - always returns to menu
     bool button_sleep = cosmic_unicorn.is_pressed(CosmicUnicorn::SWITCH_SLEEP);
+
+#ifdef ENABLE_BLUETOOTH
+    // Also check Bluetooth controller sleep button
+    BluetoothController* bt_controller = getBluetoothController();
+    if (bt_controller && bt_controller->isConnected()) {
+        BluetoothButtons bt_buttons = bt_controller->getButtons();
+        button_sleep = button_sleep || bt_buttons.button_sleep;
+    }
+#endif
+
     static bool sleep_was_pressed = false;
 
     if (button_sleep && !sleep_was_pressed && current_state == LauncherState::PLAYING_GAME) {

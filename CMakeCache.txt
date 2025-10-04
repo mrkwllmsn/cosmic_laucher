@@ -225,6 +225,9 @@ EXECUTABLE_OUTPUT_PATH:PATH=
 //Single output directory for building all libraries.
 LIBRARY_OUTPUT_PATH:PATH=
 
+//No help, variable specified on the command line.
+PICO_BOARD:UNINITIALIZED=pico_w
+
 //Value Computed by CMake
 Project_BINARY_DIR:STATIC=/home/mark/Projects/pico-projects/pico-sdk/pimoroni-pico/examples/cosmic_launcher
 

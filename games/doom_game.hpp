@@ -69,6 +69,8 @@ private:
     Bullet bullets[MAX_BULLETS];
     int muzzleFlash = 0;  // Muzzle flash animation counter
     int gunRecoil = 0;    // Gun recoil animation counter
+    float currentBrightness = 0.7f;  // Current display brightness
+    float targetBrightness = 0.7f;   // Target brightness to fade to
 
     // Power-up system
     struct PowerUp {
@@ -138,6 +140,10 @@ private:
         SPACE,
         CYBER,
         TOXIC,
+        ICE,
+        DESERT,
+        INDUSTRIAL,
+        FOREST,
         COUNT
     };
     Theme currentTheme = Theme::HELL;
@@ -231,6 +237,9 @@ private:
             muzzleFlash = 8;
             gunRecoil = 4;
         }
+
+        // Trigger brightness flash
+        currentBrightness = 1.0f;
 
         switch (weaponType) {
             case 0: {  // Single shot
@@ -764,7 +773,9 @@ private:
                     int shade = (y * 255) / (HEIGHT / 2);
                     Pen skyPen = gfx.create_pen(100 + shade / 2, shade / 8, 0);
                     gfx.set_pen(skyPen);
-                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
                 }
 
                 // Floating embers with parallax
@@ -784,7 +795,9 @@ private:
                     int flicker = ((currentTime + y * 10) % 20) - 10;
                     Pen floorPen = gfx.create_pen(40 + shade + flicker, shade / 4, 0);
                     gfx.set_pen(floorPen);
-                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
                 }
                 break;
             }
@@ -796,7 +809,9 @@ private:
                     int shade = (y * 100) / (HEIGHT / 2);
                     Pen skyPen = gfx.create_pen(shade / 4, 0, 40 + shade / 2);
                     gfx.set_pen(skyPen);
-                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
                 }
 
                 // Stars with parallax (different layers)
@@ -822,7 +837,9 @@ private:
                     int shade = ((y - HEIGHT / 2) * 60) / (HEIGHT / 2);
                     Pen floorPen = gfx.create_pen(shade / 2, shade / 2, shade);
                     gfx.set_pen(floorPen);
-                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
                 }
                 // Grid lines on floor
                 for (int x = 0; x < WIDTH; x += 4) {
@@ -841,7 +858,9 @@ private:
                     int shade = (y * 255) / (HEIGHT / 2);
                     Pen skyPen = gfx.create_pen(shade / 3, shade / 2, 100 + shade / 2);
                     gfx.set_pen(skyPen);
-                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
                 }
 
                 // Neon city skyline with parallax
@@ -882,7 +901,9 @@ private:
                     int shade = ((y - HEIGHT / 2) * 80) / (HEIGHT / 2);
                     Pen floorPen = gfx.create_pen(shade / 4, 0, shade / 2);
                     gfx.set_pen(floorPen);
-                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
                 }
                 // Animated grid
                 for (int x = 0; x < WIDTH; x += 3) {
@@ -901,7 +922,9 @@ private:
                     int shade = (y * 200) / (HEIGHT / 2);
                     Pen skyPen = gfx.create_pen(shade / 4, 80 + shade / 2, shade / 8);
                     gfx.set_pen(skyPen);
-                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
                 }
 
                 // Toxic clouds drifting with parallax
@@ -926,7 +949,9 @@ private:
                     int pulse = (int)(sinf((currentTime / 100.0f) + y * 0.1f) * 10);
                     Pen floorPen = gfx.create_pen(shade / 5, 20 + shade / 2 + pulse, 0);
                     gfx.set_pen(floorPen);
-                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
                 }
                 // Bubbles rising
                 for (int i = 0; i < 6; i++) {
@@ -940,6 +965,277 @@ private:
                 break;
             }
 
+            case Theme::ICE: {
+                // Ice/Frozen theme - aurora sky with snowflakes
+                for (int y = 0; y < HEIGHT / 2; y++) {
+                    // Gradient from deep blue to cyan with aurora shimmer
+                    int shade = (y * 200) / (HEIGHT / 2);
+                    int shimmer = (int)(sinf((currentTime / 300.0f) + y * 0.3f) * 20);
+                    Pen skyPen = gfx.create_pen(shade / 6 + shimmer, 100 + shade / 3, 150 + shade / 4);
+                    gfx.set_pen(skyPen);
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+
+                // Aurora bands with parallax
+                for (int band = 0; band < 2; band++) {
+                    for (int x = 0; x < WIDTH; x++) {
+                        int waveY = HEIGHT / 4 + band * 4 + (int)(sinf((x + skyOffset * 0.5f + band * 10) * 0.3f) * 2);
+                        if (waveY >= 0 && waveY < HEIGHT / 2) {
+                            int brightness = 100 + (int)(sinf((currentTime / 200.0f) + x * 0.2f) * 50);
+                            Pen auroraPen = gfx.create_pen(brightness / 3, brightness, brightness);
+                            gfx.set_pen(auroraPen);
+                            gfx.pixel(Point(x, waveY));
+                        }
+                    }
+                }
+
+                // Falling snowflakes with parallax layers
+                for (int i = 0; i < 15; i++) {
+                    int x = (int)(i * 7 + skyOffset * 0.2f) % WIDTH;
+                    int y = ((currentTime / 50 + i * 15) % 120) / 4;  // Slow fall
+                    if (y < HEIGHT / 2) {
+                        gfx.set_pen(gfx.create_pen(200 + (i % 2) * 55, 200 + (i % 2) * 55, 255));
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+
+                // Icy floor with cracks
+                for (int y = HEIGHT / 2; y < HEIGHT; y++) {
+                    int shade = ((y - HEIGHT / 2) * 100) / (HEIGHT / 2);
+                    int sparkle = ((currentTime / 100 + y * 3) % 30) - 15;
+                    Pen floorPen = gfx.create_pen(150 + shade / 2 + sparkle / 2, 180 + shade / 2 + sparkle / 2, 200 + shade / 2);
+                    gfx.set_pen(floorPen);
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+                // Ice cracks
+                for (int x = 0; x < WIDTH; x += 7) {
+                    if ((x + (int)skyOffset) % 11 == 0) {
+                        int crackY = HEIGHT / 2 + 3 + (x % 3);
+                        if (crackY < HEIGHT) {
+                            gfx.set_pen(gfx.create_pen(100, 120, 150));
+                            gfx.pixel(Point(x, crackY));
+                        }
+                    }
+                }
+                break;
+            }
+
+            case Theme::DESERT: {
+                // Desert/Canyon theme - hot orange sky with sun
+                for (int y = 0; y < HEIGHT / 2; y++) {
+                    // Orange to yellow gradient
+                    int shade = (y * 255) / (HEIGHT / 2);
+                    Pen skyPen = gfx.create_pen(200 + shade / 5, 100 + shade / 2, 30 + shade / 8);
+                    gfx.set_pen(skyPen);
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+
+                // Scorching sun with parallax (moves slowly)
+                int sunX = (int)(WIDTH / 2 + skyOffset * 0.1f);
+                int sunY = HEIGHT / 6;
+                for (int sy = -3; sy <= 3; sy++) {
+                    for (int sx = -3; sx <= 3; sx++) {
+                        if (sx*sx + sy*sy <= 9) {
+                            int x = sunX + sx;
+                            int y = sunY + sy;
+                            if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT / 2) {
+                                gfx.set_pen(gfx.create_pen(255, 220, 100));
+                                gfx.pixel(Point(x, y));
+                            }
+                        }
+                    }
+                }
+
+                // Heat shimmer particles rising
+                for (int i = 0; i < 8; i++) {
+                    int x = (i * 9 + (int)(skyOffset * 0.3f)) % WIDTH;
+                    int y = HEIGHT / 2 - 1 - ((currentTime / 100 + i * 20) % 80) / 5;
+                    if (y >= 0 && y < HEIGHT / 2) {
+                        int opacity = 100 + (i * 15) % 100;
+                        gfx.set_pen(gfx.create_pen(255, 180 + opacity / 3, opacity / 2));
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+
+                // Sandy floor with dunes pattern
+                for (int y = HEIGHT / 2; y < HEIGHT; y++) {
+                    int shade = ((y - HEIGHT / 2) * 80) / (HEIGHT / 2);
+                    int dunePattern = (int)(sinf((y + currentTime / 100.0f) * 0.5f) * 15);
+                    Pen floorPen = gfx.create_pen(180 + shade / 2 + dunePattern / 2, 140 + shade / 2 + dunePattern / 3, 60 + shade / 4);
+                    gfx.set_pen(floorPen);
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+                // Sand ripples
+                for (int x = 0; x < WIDTH; x += 4) {
+                    if ((x + (int)skyOffset + (int)(currentTime / 200)) % 8 == 0) {
+                        gfx.set_pen(gfx.create_pen(140, 100, 40));
+                        gfx.pixel(Point(x, HEIGHT / 2 + 2));
+                    }
+                }
+                break;
+            }
+
+            case Theme::INDUSTRIAL: {
+                // Industrial/Factory theme - polluted sky with smokestacks
+                for (int y = 0; y < HEIGHT / 2; y++) {
+                    // Dark grey/brown polluted sky
+                    int shade = (y * 150) / (HEIGHT / 2);
+                    Pen skyPen = gfx.create_pen(60 + shade / 3, 50 + shade / 4, 40 + shade / 5);
+                    gfx.set_pen(skyPen);
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+
+                // Smoke plumes with parallax
+                for (int stack = 0; stack < 3; stack++) {
+                    int stackX = (int)(stack * 12 + skyOffset * 0.6f) % (WIDTH + 8) - 4;
+                    // Smoke rising and expanding
+                    for (int puff = 0; puff < 5; puff++) {
+                        int puffY = HEIGHT / 2 - 3 - puff * 2 - ((currentTime / 80 + stack * 10) % 30) / 3;
+                        int puffSize = 1 + puff / 2;
+                        for (int px = 0; px < puffSize; px++) {
+                            int x = stackX + px - puffSize / 2 + (puff % 2);
+                            if (x >= 0 && x < WIDTH && puffY >= 0 && puffY < HEIGHT / 2) {
+                                int smokeShade = 80 + puff * 10;
+                                gfx.set_pen(gfx.create_pen(smokeShade, smokeShade - 10, smokeShade - 20));
+                                gfx.pixel(Point(x, puffY));
+                            }
+                        }
+                    }
+                }
+
+                // Industrial skyline with parallax
+                for (int i = 0; i < 8; i++) {
+                    int x = (int)(i * 8 + skyOffset * 0.8f) % (WIDTH + 6) - 3;
+                    int structureHeight = 2 + (i % 4);
+                    for (int h = 0; h < structureHeight; h++) {
+                        int px = x;
+                        int py = HEIGHT / 2 - h - 1;
+                        if (px >= 0 && px < WIDTH && py >= 0) {
+                            gfx.set_pen(gfx.create_pen(30, 30, 30));
+                            gfx.pixel(Point(px, py));
+                            // Warning lights on top
+                            if (h == structureHeight - 1 && (currentTime / 400 + i) % 2 == 0) {
+                                gfx.set_pen(gfx.create_pen(255, 0, 0));
+                                gfx.pixel(Point(px, py));
+                            }
+                        }
+                    }
+                }
+
+                // Metal grating floor with rust
+                for (int y = HEIGHT / 2; y < HEIGHT; y++) {
+                    int shade = ((y - HEIGHT / 2) * 60) / (HEIGHT / 2);
+                    int rust = ((y + (int)(currentTime / 100)) % 5 == 0) ? 15 : 0;
+                    Pen floorPen = gfx.create_pen(40 + shade / 2 + rust, 40 + shade / 2, 40 + shade / 2);
+                    gfx.set_pen(floorPen);
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+                // Grating lines
+                for (int x = 0; x < WIDTH; x += 2) {
+                    if ((x + (int)skyOffset) % 4 == 0) {
+                        gfx.set_pen(gfx.create_pen(80, 80, 80));
+                        gfx.pixel(Point(x, HEIGHT / 2 + 1));
+                    }
+                }
+                // Rust spots
+                for (int i = 0; i < 6; i++) {
+                    int x = (i * 11) % WIDTH;
+                    int y = HEIGHT / 2 + 4 + (i % 3);
+                    if (y < HEIGHT) {
+                        gfx.set_pen(gfx.create_pen(120, 60, 20));
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+                break;
+            }
+
+            case Theme::FOREST: {
+                // Forest/Jungle theme - green canopy with fireflies
+                for (int y = 0; y < HEIGHT / 2; y++) {
+                    // Dark green gradient (seen through canopy)
+                    int shade = (y * 120) / (HEIGHT / 2);
+                    Pen skyPen = gfx.create_pen(shade / 6, 40 + shade / 2, shade / 8);
+                    gfx.set_pen(skyPen);
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+
+                // Canopy leaves with parallax
+                for (int layer = 0; layer < 3; layer++) {
+                    float layerSpeed = 0.3f + layer * 0.2f;
+                    for (int i = 0; i < 10; i++) {
+                        int x = (int)(i * 6 + skyOffset * layerSpeed + layer * 4) % WIDTH;
+                        int y = (i * 5 + layer * 3) % (HEIGHT / 2);
+                        int leafSize = 2 - layer / 2;
+
+                        for (int lx = 0; lx < leafSize; lx++) {
+                            int px = x + lx;
+                            if (px >= 0 && px < WIDTH && y >= 0 && y < HEIGHT / 2) {
+                                int greenShade = 100 + (layer * 30) - (i * 5);
+                                gfx.set_pen(gfx.create_pen(greenShade / 5, greenShade, greenShade / 4));
+                                gfx.pixel(Point(px, y));
+                            }
+                        }
+                    }
+                }
+
+                // Glowing fireflies
+                for (int i = 0; i < 12; i++) {
+                    int x = (int)(i * 7 + sinf((currentTime / 300.0f) + i) * 3) % WIDTH;
+                    int y = (int)(i * 3 + cosf((currentTime / 250.0f) + i * 2) * 2) % (HEIGHT / 2);
+                    // Pulsing glow
+                    int glow = (int)(sinf((currentTime / 150.0f) + i * 0.5f) * 100 + 155);
+                    if ((currentTime / 100 + i) % 5 != 0) {  // Some flicker
+                        gfx.set_pen(gfx.create_pen(glow, glow, 100 + glow / 2));
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+
+                // Mossy ground floor
+                for (int y = HEIGHT / 2; y < HEIGHT; y++) {
+                    int shade = ((y - HEIGHT / 2) * 80) / (HEIGHT / 2);
+                    int moss = (int)(sinf((y + currentTime / 100.0f) * 0.7f) * 10);
+                    Pen floorPen = gfx.create_pen(shade / 5 + moss / 2, 60 + shade / 2 + moss, shade / 6);
+                    gfx.set_pen(floorPen);
+                    for (int x = 0; x < WIDTH; x++) {
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+                // Roots and vines pattern
+                for (int x = 0; x < WIDTH; x += 5) {
+                    if ((x + (int)skyOffset + (int)(currentTime / 150)) % 9 == 0) {
+                        int rootY = HEIGHT / 2 + 2 + (x % 4);
+                        if (rootY < HEIGHT) {
+                            gfx.set_pen(gfx.create_pen(40, 30, 20));
+                            gfx.pixel(Point(x, rootY));
+                        }
+                    }
+                }
+                // Mushrooms glowing on floor
+                for (int i = 0; i < 5; i++) {
+                    int x = (i * 13) % WIDTH;
+                    int y = HEIGHT - 2 - (i % 2);
+                    if ((currentTime / 300 + i) % 4 < 2) {  // Pulsing
+                        gfx.set_pen(gfx.create_pen(150, 100 + (i * 30) % 100, 200));
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+                break;
+            }
+
             default:
                 break;
         }
@@ -947,7 +1243,7 @@ private:
 
     void drawWalls(PicoGraphics_PenRGB888& gfx) {
         float startAngle = playerAngle - FOV / 2.0f;
-        float angleStep = FOV / RAY_COUNT;
+        float angleStep = FOV / (RAY_COUNT - 1);  // Divide by RAY_COUNT-1 to ensure we hit both edges
 
         for (int i = 0; i < RAY_COUNT; i++) {
             float rayAngle = startAngle + i * angleStep;
@@ -1006,6 +1302,34 @@ private:
                     r = shade / 4;
                     g = shade * 3 / 4;
                     b = shade / 8;
+                    break;
+
+                case Theme::ICE:
+                    // Crystalline ice walls - bright blue-white
+                    r = shade * 3 / 4;
+                    g = shade * 4 / 5;
+                    b = shade;
+                    break;
+
+                case Theme::DESERT:
+                    // Sandstone canyon walls - orange/tan
+                    r = shade;
+                    g = shade * 2 / 3;
+                    b = shade / 4;
+                    break;
+
+                case Theme::INDUSTRIAL:
+                    // Rusted metal walls - dark grey with rust
+                    r = shade / 2 + 20;
+                    g = shade / 2;
+                    b = shade / 2;
+                    break;
+
+                case Theme::FOREST:
+                    // Ancient stone covered in moss - dark green-grey
+                    r = shade / 4;
+                    g = shade / 2;
+                    b = shade / 6;
                     break;
 
                 default:
@@ -1516,7 +1840,13 @@ public:
 
         // Initialize lightning effect
         lightning.init();
+        lightning.enableAutoSpawn(false);  // Disable random lightning, only use for gun
         lightningFiring = false;
+
+        // Set initial brightness
+        currentBrightness = 0.7f;
+        targetBrightness = 0.7f;
+        cosmic->set_brightness(currentBrightness);
     }
 
     void resetGame() {
@@ -1584,6 +1914,19 @@ public:
             int nextTheme = ((int)currentTheme + 1) % (int)Theme::COUNT;
             currentTheme = (Theme)nextTheme;
             lastThemeChange = currentTime;
+        }
+
+        // Smooth brightness fade back to 0.7
+        if (currentBrightness > targetBrightness) {
+            currentBrightness -= 0.05f;  // Fade down by 0.05 per frame
+            if (currentBrightness < targetBrightness) {
+                currentBrightness = targetBrightness;
+            }
+        }
+
+        // Update cosmic unicorn brightness
+        if (cosmic) {
+            cosmic->set_brightness(currentBrightness);
         }
 
         return !shouldExit;  // Return false to exit
