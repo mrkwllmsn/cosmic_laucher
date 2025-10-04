@@ -209,10 +209,10 @@ private:
     void updateAI() {
         uint32_t currentTime = time_us_32() / 1000;  // Convert to ms
 
-        // Check for nearby visible enemies
-        float closestEnemyDist = 1000.0f;
+        // Find the closest visible enemy anywhere on the map
+        float closestEnemyDist = 10000.0f;
         float closestEnemyAngle = 0.0f;
-        bool foundNearbyEnemy = false;
+        bool foundEnemy = false;
 
         for (int i = 0; i < MAX_ENEMIES; i++) {
             if (enemies[i].active) {
@@ -220,46 +220,18 @@ private:
                 float dy = enemies[i].y - playerY;
                 float dist = sqrtf(dx * dx + dy * dy);
 
-                // Check if enemy is close enough and visible (no wall between)
-                if (dist < 200.0f && !hasWallBetween(playerX, playerY, enemies[i].x, enemies[i].y)) {
+                // Check if enemy is visible (no wall between) - hunt ANY visible enemy
+                if (!hasWallBetween(playerX, playerY, enemies[i].x, enemies[i].y)) {
                     if (dist < closestEnemyDist) {
                         closestEnemyDist = dist;
                         closestEnemyAngle = atan2f(dy, dx);
-                        foundNearbyEnemy = true;
+                        foundEnemy = true;
                     }
                 }
             }
         }
 
-        // If there's a nearby enemy, turn to face it and shoot
-        if (foundNearbyEnemy && !isRotating) {
-            float angleDiff = closestEnemyAngle - playerAngle;
-
-            // Normalize angle difference
-            while (angleDiff > 3.14159f) angleDiff -= 6.28318f;
-            while (angleDiff < -3.14159f) angleDiff += 6.28318f;
-
-            // If enemy is roughly in front, shoot at it
-            if (fabsf(angleDiff) < 0.3f) {
-                // Shoot more frequently when facing enemy
-                if (currentTime - shootTimer > (uint32_t)(400 + (rand() % 600))) {
-                    shoot();
-                    shootTimer = currentTime;
-                }
-            } else {
-                // Turn to face the enemy
-                targetAngle = closestEnemyAngle;
-                isRotating = true;
-            }
-        } else {
-            // Normal shooting when no nearby enemy
-            if (currentTime - shootTimer > (uint32_t)(800 + (rand() % 1500))) {
-                shoot();
-                shootTimer = currentTime;
-            }
-        }
-
-        // Rotation logic - do this first
+        // Rotation logic
         if (isRotating) {
             float angleDiff = targetAngle - playerAngle;
 
@@ -271,44 +243,77 @@ private:
                 playerAngle = targetAngle;
                 isRotating = false;
             } else {
-                // Faster rotation when avoiding walls or chasing enemies
-                playerAngle += (angleDiff > 0 ? 1 : -1) * ROTATION_SPEED * 3.0f;
+                // Rotate toward target
+                playerAngle += (angleDiff > 0 ? 1 : -1) * ROTATION_SPEED * 4.0f;
             }
         }
 
-        // Movement logic
-        if (currentTime - moveTimer > 100) {
-            // Look ahead to detect walls before hitting them
-            float lookAheadDist = PLAYER_SPEED * 8.0f;
+        // Movement logic - ALWAYS try to move forward
+        if (currentTime - moveTimer > 50) {  // Faster movement updates
+            // Check if we can move forward
+            float lookAheadDist = PLAYER_SPEED * 10.0f;
             float lookX = playerX + cosf(playerAngle) * lookAheadDist;
             float lookY = playerY + sinf(playerAngle) * lookAheadDist;
 
-            // If we're about to hit a wall, turn immediately
-            if (!isValidPosition(lookX, lookY) && !isRotating) {
-                // Try turning right first
+            bool pathBlocked = !isValidPosition(lookX, lookY);
+
+            // If path is blocked, find a new direction
+            if (pathBlocked) {
+                // Try to find an open direction
                 float testAngleRight = playerAngle + 1.57f;
                 float testXRight = playerX + cosf(testAngleRight) * lookAheadDist;
                 float testYRight = playerY + sinf(testAngleRight) * lookAheadDist;
 
-                // Try turning left
                 float testAngleLeft = playerAngle - 1.57f;
                 float testXLeft = playerX + cosf(testAngleLeft) * lookAheadDist;
                 float testYLeft = playerY + sinf(testAngleLeft) * lookAheadDist;
 
-                // Choose the direction that's more open
+                // Choose direction with most space
                 if (isValidPosition(testXRight, testYRight)) {
                     targetAngle = testAngleRight;
+                    isRotating = true;
                 } else if (isValidPosition(testXLeft, testYLeft)) {
                     targetAngle = testAngleLeft;
+                    isRotating = true;
                 } else {
-                    // Both blocked, turn around
+                    // Both blocked, turn around completely
                     targetAngle = playerAngle + 3.14159f;
+                    isRotating = true;
                 }
-                isRotating = true;
             }
+            // If we found an enemy and can see it, hunt it!
+            else if (foundEnemy) {
+                float angleDiff = closestEnemyAngle - playerAngle;
 
-            // Try to move forward only if not rotating
-            if (!isRotating) {
+                // Normalize angle difference
+                while (angleDiff > 3.14159f) angleDiff -= 6.28318f;
+                while (angleDiff < -3.14159f) angleDiff += 6.28318f;
+
+                // If enemy is roughly in front, move toward it and shoot
+                if (fabsf(angleDiff) < 0.4f) {
+                    // Move toward enemy
+                    float newX = playerX + cosf(playerAngle) * PLAYER_SPEED;
+                    float newY = playerY + sinf(playerAngle) * PLAYER_SPEED;
+
+                    if (isValidPosition(newX, newY)) {
+                        playerX = newX;
+                        playerY = newY;
+                    }
+
+                    // Shoot at enemy
+                    if (currentTime - shootTimer > (uint32_t)(300 + (rand() % 500))) {
+                        shoot();
+                        shootTimer = currentTime;
+                    }
+                } else if (!isRotating) {
+                    // Turn to face enemy
+                    targetAngle = closestEnemyAngle;
+                    isRotating = true;
+                }
+            }
+            // No enemy visible, just explore
+            else {
+                // Keep moving forward
                 float newX = playerX + cosf(playerAngle) * PLAYER_SPEED;
                 float newY = playerY + sinf(playerAngle) * PLAYER_SPEED;
 
@@ -316,16 +321,22 @@ private:
                     playerX = newX;
                     playerY = newY;
                 }
+
+                // Random shooting while exploring
+                if (currentTime - shootTimer > (uint32_t)(1500 + (rand() % 2000))) {
+                    shoot();
+                    shootTimer = currentTime;
+                }
+
+                // Occasionally pick a new random direction
+                if (!isRotating && currentTime - rotateTimer > (uint32_t)(2000 + (rand() % 2000))) {
+                    targetAngle = ((rand() % 360) * 3.14159f) / 180.0f;
+                    isRotating = true;
+                    rotateTimer = currentTime;
+                }
             }
 
             moveTimer = currentTime;
-        }
-
-        // Random rotation occasionally (when not already rotating)
-        if (!isRotating && currentTime - rotateTimer > (uint32_t)(3000 + (rand() % 3000))) {
-            targetAngle = ((rand() % 360) * 3.14159f) / 180.0f;
-            isRotating = true;
-            rotateTimer = currentTime;
         }
     }
 
