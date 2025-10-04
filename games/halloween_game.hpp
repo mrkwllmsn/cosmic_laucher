@@ -33,6 +33,19 @@ private:
     uint32_t animation_timer;
     bool in_transition;  // Track if we're in a WOODLAND_PATH transition
     HalloweenScene next_target_scene; // The scene we'll transition to after WOODLAND_PATH
+
+    // Fade transition state
+    enum class TransitionState {
+        NORMAL,
+        FADING_OUT,
+        FADING_IN
+    };
+    TransitionState transition_state = TransitionState::NORMAL;
+    uint32_t transition_start_time = 0;
+    static constexpr uint32_t FADE_DURATION = 500;  // 500ms fade duration
+    HalloweenScene pending_scene;
+    float current_brightness = 0.7f;
+    float target_brightness = 0.7f;
     
     // Animation states
     
@@ -2145,37 +2158,104 @@ public:
         } else {
             current_scene_duration = scene_duration;
         }
-        // Only auto-advance scenes if not paused
-        if (!is_paused && current_time - scene_start_time > current_scene_duration) {
-            current_scene = getNextScene(current_scene);
-            scene_start_time = current_time;
-            
-            // Reset scene-specific states when entering scenes
-            if (current_scene == FLYING_BATS) {
-                for (size_t i = 0; i < bat_positions.size(); i++) {
-                    bat_positions[i] = -10 - i * 15;
+        // Handle fade transitions
+        if (transition_state == TransitionState::FADING_OUT) {
+            uint32_t elapsed = current_time - transition_start_time;
+            if (elapsed >= FADE_DURATION) {
+                // Fade out complete, switch scene and start fade in
+                current_scene = pending_scene;
+                transition_state = TransitionState::FADING_IN;
+                transition_start_time = current_time;
+                scene_start_time = current_time;
+
+                // Reset scene-specific states when entering scenes
+                if (current_scene == FLYING_BATS) {
+                    for (size_t i = 0; i < bat_positions.size(); i++) {
+                        bat_positions[i] = -10 - i * 15;
+                    }
+                } else if (current_scene == BAT_FLOCK || current_scene == CASTLE) {
+                    // Reset boids to random positions
+                    boids.clear();
+                    for (int i = 0; i < 12; i++) {
+                        float x = 8 + (rand() % 16);
+                        float y = 8 + (rand() % 16);
+                        boids.emplace_back(x, y);
+                    }
+                } else if (current_scene == CREEPY_EYES) {
+                    // Generate new random eye configuration
+                    generateRandomEyes();
+                    eyes_regen_timer = to_ms_since_boot(get_absolute_time());
+                } else if (current_scene == SKULL_CROSSBONES) {
+                    // Setup skull eyes
+                    setupSkullEyes();
+                } else if (current_scene == HAUNTED_TREE) {
+                    // Setup tree eyes
+                    setupTreeEyes();
+                } else if (current_scene == CANDLE_FLAME) {
+                    // Reset flame heat map
+                    for (int i = 0; i < 32 * 35; i++) {
+                        flame_heat[i] = 0.0f;
+                    }
+                    candle_flicker_phase = 0;
+                } else if (current_scene == FLAME_FACE) {
+                    // Reset flame face heat map and animations
+                    for (int i = 0; i < 32 * 35; i++) {
+                        flame_face_heat[i] = 0.0f;
+                    }
+                    candle_flicker_phase = 0;
+                    face_eye_blink_timer = 0;
+                    face_left_eye_open = true;
+                    face_right_eye_open = true;
+                    face_mouth_anim_phase = 0;
+                } else if (current_scene == GHOSTLY_SPIRITS) {
+                    // Reset ghosts
+                    for (auto& ghost : ghosts) {
+                        ghost.x = rand() % 32;
+                        ghost.y = rand() % 32;
+                        ghost.phase = rand() % 100 * 0.1f;
+                    }
                 }
-            } else if (current_scene == BAT_FLOCK || current_scene == CASTLE) {
-                // Reset boids to random positions
-                boids.clear();
-                for (int i = 0; i < 12; i++) {
-                    float x = 8 + (rand() % 16);  
-                    float y = 8 + (rand() % 16);  
-                    boids.emplace_back(x, y);
-                }
-            } else if (current_scene == CREEPY_EYES) {
-                // Generate new random eye configuration
-                generateRandomEyes();
-                eyes_regen_timer = to_ms_since_boot(get_absolute_time());
-            } else if (current_scene == SKULL_CROSSBONES) {
-                // Setup skull eyes
-                setupSkullEyes();
-            } else if (current_scene == HAUNTED_TREE) {
-                // Setup tree eyes
-                setupTreeEyes();
+            }
+        } else if (transition_state == TransitionState::FADING_IN) {
+            uint32_t elapsed = current_time - transition_start_time;
+            if (elapsed >= FADE_DURATION) {
+                // Fade in complete
+                transition_state = TransitionState::NORMAL;
+                target_brightness = 0.7f;
             }
         }
-        
+
+        // Only auto-advance scenes if not paused and not in transition
+        if (!is_paused && transition_state == TransitionState::NORMAL &&
+            current_time - scene_start_time > current_scene_duration) {
+            // Start fade out transition
+            transition_state = TransitionState::FADING_OUT;
+            transition_start_time = current_time;
+            pending_scene = getNextScene(current_scene);
+            target_brightness = 0.0f;
+        }
+
+        // Update brightness based on transition state
+        if (transition_state == TransitionState::FADING_OUT) {
+            // Fade to black
+            float fade_progress = (float)(current_time - transition_start_time) / FADE_DURATION;
+            current_brightness = 0.7f * (1.0f - fade_progress);
+            if (current_brightness < 0.0f) current_brightness = 0.0f;
+        } else if (transition_state == TransitionState::FADING_IN) {
+            // Fade from black
+            float fade_progress = (float)(current_time - transition_start_time) / FADE_DURATION;
+            current_brightness = 0.7f * fade_progress;
+            if (current_brightness > 0.7f) current_brightness = 0.7f;
+        } else {
+            // Normal brightness
+            current_brightness = 0.7f;
+        }
+
+        // Apply brightness to cosmic unicorn
+        if (cosmic) {
+            cosmic->set_brightness(current_brightness);
+        }
+
         // Update scene-specific animations
         switch (current_scene) {
             case CREEPY_EYES:
@@ -2360,60 +2440,15 @@ public:
     void handleInput(bool button_a, bool button_b, bool button_c, bool button_d,
                     bool button_vol_up, bool button_vol_down, 
                     bool button_bright_up, bool button_bright_down) override {
-        // Allow manual scene switching with A button
+        // Allow manual scene switching with A button (only when not already transitioning)
         static bool a_pressed = false;
-        if (button_a && !a_pressed) {
-            current_scene = getNextScene(current_scene);
-            scene_start_time = to_ms_since_boot(get_absolute_time());
+        if (button_a && !a_pressed && transition_state == TransitionState::NORMAL) {
+            // Start fade out transition
+            transition_state = TransitionState::FADING_OUT;
+            transition_start_time = to_ms_since_boot(get_absolute_time());
+            pending_scene = getNextScene(current_scene);
+            target_brightness = 0.0f;
             a_pressed = true;
-            
-            // Reset scene-specific states when manually entering scenes
-            if (current_scene == FLYING_BATS) {
-                for (size_t i = 0; i < bat_positions.size(); i++) {
-                    bat_positions[i] = -10 - i * 15;
-                }
-            } else if (current_scene == BAT_FLOCK || current_scene == CASTLE) {
-                // Reset boids to random positions
-                boids.clear();
-                for (int i = 0; i < 12; i++) {
-                    float x = 8 + (rand() % 16);  
-                    float y = 8 + (rand() % 16);  
-                    boids.emplace_back(x, y);
-                }
-            } else if (current_scene == CREEPY_EYES) {
-                // Generate new random eye configuration
-                generateRandomEyes();
-                eyes_regen_timer = to_ms_since_boot(get_absolute_time());
-            } else if (current_scene == SKULL_CROSSBONES) {
-                // Setup skull eyes
-                setupSkullEyes();
-            } else if (current_scene == HAUNTED_TREE) {
-                // Setup tree eyes
-                setupTreeEyes();
-            } else if (current_scene == CANDLE_FLAME) {
-                // Reset flame heat map
-                for (int i = 0; i < 32 * 35; i++) {
-                    flame_heat[i] = 0.0f;
-                }
-                candle_flicker_phase = 0;
-            } else if (current_scene == FLAME_FACE) {
-                // Reset flame face heat map and animations
-                for (int i = 0; i < 32 * 35; i++) {
-                    flame_face_heat[i] = 0.0f;
-                }
-                candle_flicker_phase = 0;
-                face_eye_blink_timer = 0;
-                face_left_eye_open = true;
-                face_right_eye_open = true;
-                face_mouth_anim_phase = 0;
-            } else if (current_scene == GHOSTLY_SPIRITS) {
-                // Reset ghosts
-                for (auto& ghost : ghosts) {
-                    ghost.x = rand() % 32;
-                    ghost.y = rand() % 32;
-                    ghost.phase = rand() % 100 * 0.1f;
-                }
-            }
         } else if (!button_a) {
             a_pressed = false;
         }
