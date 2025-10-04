@@ -37,6 +37,10 @@ private:
     float playerX = TILE_SIZE * 1.5f;
     float playerY = TILE_SIZE * 1.5f;
     float playerAngle = 0.0f;
+    int playerHealth = 100;
+    static constexpr int MAX_HEALTH = 100;
+    bool isDead = false;
+    uint32_t deathTime = 0;
 
     // AI state for auto-play
     uint32_t moveTimer = 0;
@@ -45,6 +49,9 @@ private:
     float targetAngle = 0.0f;
     bool isRotating = false;
 
+    // Weapon system
+    int weaponType = 0;  // 0=single, 1=spread, 2=rapid, 3=plasma
+
     // Bullet system
     struct Bullet {
         float x, y;
@@ -52,11 +59,21 @@ private:
         float distance;
         bool active;
         uint32_t spawnTime;
+        int type;  // Weapon type that fired this bullet
     };
-    static constexpr int MAX_BULLETS = 3;
+    static constexpr int MAX_BULLETS = 12;  // Increased for spread/rapid weapons
     Bullet bullets[MAX_BULLETS];
     int muzzleFlash = 0;  // Muzzle flash animation counter
     int gunRecoil = 0;    // Gun recoil animation counter
+
+    // Power-up system
+    struct PowerUp {
+        float x, y;
+        bool active;
+        uint32_t spawnTime;
+    };
+    static constexpr int MAX_POWERUPS = 4;
+    PowerUp powerups[MAX_POWERUPS];
 
     // Enemy system
     struct Enemy {
@@ -65,11 +82,12 @@ private:
         int health;
         uint32_t animFrame;
         uint32_t lastAnimTime;
+        uint32_t lastAttackTime;
     };
-    static constexpr int MAX_ENEMIES = 5;
+    static constexpr int MAX_ENEMIES = 8;
     Enemy enemies[MAX_ENEMIES];
     uint32_t lastSpawnTime = 0;
-    static constexpr uint32_t SPAWN_INTERVAL = 3000;  // 3 seconds
+    static constexpr uint32_t SPAWN_INTERVAL = 1500;  // 1.5 seconds
 
     // Particle system for explosions
     struct Particle {
@@ -82,6 +100,19 @@ private:
     };
     static constexpr int MAX_PARTICLES = 30;
     Particle particles[MAX_PARTICLES];
+
+    // Theme system
+    enum class Theme {
+        HELL,
+        SPACE,
+        CYBER,
+        TOXIC,
+        COUNT
+    };
+    Theme currentTheme = Theme::HELL;
+    uint32_t lastThemeChange = 0;
+    static constexpr uint32_t THEME_CHANGE_INTERVAL = 20000;  // 20 seconds
+    float skyOffset = 0.0f;  // For parallax scrolling
 
     struct Ray {
         float distance;
@@ -162,19 +193,82 @@ private:
         return map[gridY][gridX] == 0;
     }
 
-    // Shoot a bullet
+    // Shoot a bullet based on weapon type
     void shoot() {
-        // Find an inactive bullet slot
-        for (int i = 0; i < MAX_BULLETS; i++) {
-            if (!bullets[i].active) {
-                bullets[i].x = playerX;
-                bullets[i].y = playerY;
-                bullets[i].angle = playerAngle;
-                bullets[i].distance = 0;
-                bullets[i].active = true;
-                bullets[i].spawnTime = time_us_32() / 1000;
-                muzzleFlash = 8;
-                gunRecoil = 4;
+        muzzleFlash = 8;
+        gunRecoil = 4;
+
+        switch (weaponType) {
+            case 0: {  // Single shot
+                for (int i = 0; i < MAX_BULLETS; i++) {
+                    if (!bullets[i].active) {
+                        bullets[i].x = playerX;
+                        bullets[i].y = playerY;
+                        bullets[i].angle = playerAngle;
+                        bullets[i].distance = 0;
+                        bullets[i].active = true;
+                        bullets[i].spawnTime = time_us_32() / 1000;
+                        bullets[i].type = weaponType;
+                        break;
+                    }
+                }
+                break;
+            }
+
+            case 1: {  // Spread shot (3 bullets)
+                float spread = 0.3f;
+                float angles[] = {playerAngle - spread, playerAngle, playerAngle + spread};
+                for (int a = 0; a < 3; a++) {
+                    for (int i = 0; i < MAX_BULLETS; i++) {
+                        if (!bullets[i].active) {
+                            bullets[i].x = playerX;
+                            bullets[i].y = playerY;
+                            bullets[i].angle = angles[a];
+                            bullets[i].distance = 0;
+                            bullets[i].active = true;
+                            bullets[i].spawnTime = time_us_32() / 1000;
+                            bullets[i].type = weaponType;
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+
+            case 2: {  // Rapid fire (2 bullets slightly offset)
+                for (int b = 0; b < 2; b++) {
+                    for (int i = 0; i < MAX_BULLETS; i++) {
+                        if (!bullets[i].active) {
+                            bullets[i].x = playerX;
+                            bullets[i].y = playerY;
+                            bullets[i].angle = playerAngle + (b == 0 ? -0.1f : 0.1f);
+                            bullets[i].distance = 0;
+                            bullets[i].active = true;
+                            bullets[i].spawnTime = time_us_32() / 1000;
+                            bullets[i].type = weaponType;
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+
+            case 3: {  // Plasma wave (5 bullets in wide spread)
+                float spread = 0.15f;
+                for (int a = -2; a <= 2; a++) {
+                    for (int i = 0; i < MAX_BULLETS; i++) {
+                        if (!bullets[i].active) {
+                            bullets[i].x = playerX;
+                            bullets[i].y = playerY;
+                            bullets[i].angle = playerAngle + (a * spread);
+                            bullets[i].distance = 0;
+                            bullets[i].active = true;
+                            bullets[i].spawnTime = time_us_32() / 1000;
+                            bullets[i].type = weaponType;
+                            break;
+                        }
+                    }
+                }
                 break;
             }
         }
@@ -365,6 +459,7 @@ private:
                         enemies[i].health = 2;
                         enemies[i].animFrame = 0;
                         enemies[i].lastAnimTime = time_us_32() / 1000;
+                        enemies[i].lastAttackTime = time_us_32() / 1000;
                         break;
                     }
                     attempts++;
@@ -392,12 +487,26 @@ private:
                     enemies[i].lastAnimTime = currentTime;
                 }
 
-                // Move toward player
+                // Move toward player and attack if close
                 float dx = playerX - enemies[i].x;
                 float dy = playerY - enemies[i].y;
                 float dist = sqrtf(dx * dx + dy * dy);
 
-                if (dist > 10.0f) {
+                // Attack player if close enough (within 30 units)
+                if (dist < 30.0f && !isDead) {
+                    if (currentTime - enemies[i].lastAttackTime > 1000) {  // Attack every 1 second
+                        playerHealth -= 10;
+                        enemies[i].lastAttackTime = currentTime;
+                        if (playerHealth <= 0) {
+                            playerHealth = 0;
+                            isDead = true;
+                            deathTime = currentTime;
+                            // Player death explosion
+                            spawnExplosion(playerX, playerY);
+                        }
+                    }
+                } else if (dist > 10.0f) {
+                    // Move toward player if not in attack range
                     float moveSpeed = 0.3f;
                     float newX = enemies[i].x + (dx / dist) * moveSpeed;
                     float newY = enemies[i].y + (dy / dist) * moveSpeed;
@@ -431,9 +540,53 @@ private:
                     if (enemies[e].health <= 0) {
                         // Enemy dies - create explosion
                         spawnExplosion(enemies[e].x, enemies[e].y);
+
+                        // 50% chance to drop a power-up
+                        if (rand() % 2 == 0) {
+                            spawnPowerUp(enemies[e].x, enemies[e].y);
+                        }
+
                         enemies[e].active = false;
                     }
                     break;
+                }
+            }
+        }
+    }
+
+    // Spawn a power-up
+    void spawnPowerUp(float x, float y) {
+        for (int i = 0; i < MAX_POWERUPS; i++) {
+            if (!powerups[i].active) {
+                powerups[i].x = x;
+                powerups[i].y = y;
+                powerups[i].active = true;
+                powerups[i].spawnTime = time_us_32() / 1000;
+                break;
+            }
+        }
+    }
+
+    // Update power-ups
+    void updatePowerUps() {
+        uint32_t currentTime = time_us_32() / 1000;
+
+        for (int i = 0; i < MAX_POWERUPS; i++) {
+            if (powerups[i].active) {
+                // Check if player picks up the power-up
+                float dx = playerX - powerups[i].x;
+                float dy = playerY - powerups[i].y;
+                float dist = sqrtf(dx * dx + dy * dy);
+
+                if (dist < 20.0f) {
+                    // Pick up power-up - cycle to next weapon
+                    weaponType = (weaponType + 1) % 4;
+                    powerups[i].active = false;
+                }
+
+                // Despawn after 10 seconds
+                if (currentTime - powerups[i].spawnTime > 10000) {
+                    powerups[i].active = false;
                 }
             }
         }
@@ -502,20 +655,196 @@ private:
     }
 
     void drawSkyAndFloor(PicoGraphics_PenRGB888& gfx) {
-        // Sky (top half) - dark red to blue gradient
-        for (int y = 0; y < HEIGHT / 2; y++) {
-            int shade = (y * 255) / (HEIGHT / 2);
-            Pen skyPen = gfx.create_pen(shade / 3, 0, 100 + shade / 2);
-            gfx.set_pen(skyPen);
-            gfx.line(Point(0, y), Point(WIDTH - 1, y));
-        }
+        uint32_t currentTime = time_us_32() / 1000;
 
-        // Floor (bottom half) - dark gradient
-        for (int y = HEIGHT / 2; y < HEIGHT; y++) {
-            int shade = ((y - HEIGHT / 2) * 80) / (HEIGHT / 2);
-            Pen floorPen = gfx.create_pen(shade / 4, shade / 3, shade / 2);
-            gfx.set_pen(floorPen);
-            gfx.line(Point(0, y), Point(WIDTH - 1, y));
+        // Calculate parallax offset based on player rotation
+        skyOffset = fmodf(playerAngle * 5.0f, 64.0f);  // Parallax factor
+
+        switch(currentTheme) {
+            case Theme::HELL: {
+                // Hell theme - burning sky with floating embers
+                for (int y = 0; y < HEIGHT / 2; y++) {
+                    int shade = (y * 255) / (HEIGHT / 2);
+                    Pen skyPen = gfx.create_pen(100 + shade / 2, shade / 8, 0);
+                    gfx.set_pen(skyPen);
+                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                }
+
+                // Floating embers with parallax
+                for (int i = 0; i < 8; i++) {
+                    int x = (int)(i * 8 + skyOffset) % WIDTH;
+                    int y = ((currentTime / 100 + i * 20) % 100) / 7;  // Slow rise
+                    if (y < HEIGHT / 2) {
+                        Pen emberPen = gfx.create_pen(255, 100 + (i * 20) % 100, 0);
+                        gfx.set_pen(emberPen);
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+
+                // Lava floor - much darker
+                for (int y = HEIGHT / 2; y < HEIGHT; y++) {
+                    int shade = ((y - HEIGHT / 2) * 60) / (HEIGHT / 2);
+                    int flicker = ((currentTime + y * 10) % 20) - 10;
+                    Pen floorPen = gfx.create_pen(40 + shade + flicker, shade / 4, 0);
+                    gfx.set_pen(floorPen);
+                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                }
+                break;
+            }
+
+            case Theme::SPACE: {
+                // Space theme - star field with nebula
+                for (int y = 0; y < HEIGHT / 2; y++) {
+                    // Deep space gradient with purple nebula
+                    int shade = (y * 100) / (HEIGHT / 2);
+                    Pen skyPen = gfx.create_pen(shade / 4, 0, 40 + shade / 2);
+                    gfx.set_pen(skyPen);
+                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                }
+
+                // Stars with parallax (different layers)
+                for (int layer = 0; layer < 3; layer++) {
+                    float layerSpeed = 1.0f + layer * 0.5f;
+                    for (int i = 0; i < 12; i++) {
+                        int x = (int)(i * 7 + skyOffset * layerSpeed + layer * 3) % WIDTH;
+                        int y = ((i * 11 + layer * 5) % (HEIGHT / 2));
+                        int brightness = 150 + (i * 30) % 100;
+                        Pen starPen = gfx.create_pen(brightness, brightness, 200 + brightness / 3);
+                        gfx.set_pen(starPen);
+                        gfx.pixel(Point(x, y));
+                        if (layer == 2 && i % 3 == 0) {  // Some stars twinkle
+                            if ((currentTime / 200 + i) % 3 == 0) {
+                                gfx.pixel(Point(x + 1, y));
+                            }
+                        }
+                    }
+                }
+
+                // Metal floor with grid
+                for (int y = HEIGHT / 2; y < HEIGHT; y++) {
+                    int shade = ((y - HEIGHT / 2) * 60) / (HEIGHT / 2);
+                    Pen floorPen = gfx.create_pen(shade / 2, shade / 2, shade);
+                    gfx.set_pen(floorPen);
+                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                }
+                // Grid lines on floor
+                for (int x = 0; x < WIDTH; x += 4) {
+                    if ((x + (int)skyOffset) % 8 == 0) {
+                        gfx.set_pen(gfx.create_pen(0, 100, 150));
+                        gfx.pixel(Point(x, HEIGHT / 2 + 2));
+                    }
+                }
+                break;
+            }
+
+            case Theme::CYBER: {
+                // Cyber/neon city theme
+                for (int y = 0; y < HEIGHT / 2; y++) {
+                    // Pink/cyan gradient sky
+                    int shade = (y * 255) / (HEIGHT / 2);
+                    Pen skyPen = gfx.create_pen(shade / 3, shade / 2, 100 + shade / 2);
+                    gfx.set_pen(skyPen);
+                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                }
+
+                // Neon city skyline with parallax
+                for (int i = 0; i < 6; i++) {
+                    int x = (int)(i * 10 + skyOffset * 0.7f) % (WIDTH + 10) - 5;
+                    int buildingHeight = 3 + (i % 3) * 2;
+                    int buildingWidth = 3 + (i % 2);
+
+                    for (int bx = 0; bx < buildingWidth; bx++) {
+                        for (int by = 0; by < buildingHeight; by++) {
+                            int px = x + bx;
+                            int py = HEIGHT / 2 - by - 1;
+                            if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT / 2) {
+                                // Building body
+                                Pen buildPen = gfx.create_pen(20, 20, 40);
+                                gfx.set_pen(buildPen);
+                                gfx.pixel(Point(px, py));
+
+                                // Neon windows
+                                if (by % 2 == 0 && bx % 2 == 1) {
+                                    int neonChoice = i % 3;
+                                    if (neonChoice == 0) {
+                                        gfx.set_pen(gfx.create_pen(255, 0, 150));
+                                    } else if (neonChoice == 1) {
+                                        gfx.set_pen(gfx.create_pen(0, 255, 255));
+                                    } else {
+                                        gfx.set_pen(gfx.create_pen(255, 255, 0));
+                                    }
+                                    gfx.pixel(Point(px, py));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Neon grid floor
+                for (int y = HEIGHT / 2; y < HEIGHT; y++) {
+                    int shade = ((y - HEIGHT / 2) * 80) / (HEIGHT / 2);
+                    Pen floorPen = gfx.create_pen(shade / 4, 0, shade / 2);
+                    gfx.set_pen(floorPen);
+                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                }
+                // Animated grid
+                for (int x = 0; x < WIDTH; x += 3) {
+                    if ((x + (int)skyOffset + (int)(currentTime / 100)) % 6 == 0) {
+                        gfx.set_pen(gfx.create_pen(255, 0, 255));
+                        gfx.pixel(Point(x, HEIGHT / 2 + 1));
+                    }
+                }
+                break;
+            }
+
+            case Theme::TOXIC: {
+                // Toxic wasteland theme
+                for (int y = 0; y < HEIGHT / 2; y++) {
+                    // Sickly green sky with pollution
+                    int shade = (y * 200) / (HEIGHT / 2);
+                    Pen skyPen = gfx.create_pen(shade / 4, 80 + shade / 2, shade / 8);
+                    gfx.set_pen(skyPen);
+                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                }
+
+                // Toxic clouds drifting with parallax
+                for (int i = 0; i < 10; i++) {
+                    int x = (int)(i * 6 + skyOffset * 0.3f + (currentTime / 50)) % (WIDTH + 8) - 4;
+                    int y = (i * 3) % (HEIGHT / 2 - 2);
+                    int cloudSize = 2 + (i % 2);
+
+                    for (int cx = 0; cx < cloudSize; cx++) {
+                        int px = x + cx;
+                        if (px >= 0 && px < WIDTH) {
+                            Pen cloudPen = gfx.create_pen(100, 150 + (i * 10) % 50, 20);
+                            gfx.set_pen(cloudPen);
+                            gfx.pixel(Point(px, y));
+                        }
+                    }
+                }
+
+                // Toxic sludge floor with bubbles - much darker
+                for (int y = HEIGHT / 2; y < HEIGHT; y++) {
+                    int shade = ((y - HEIGHT / 2) * 50) / (HEIGHT / 2);
+                    int pulse = (int)(sinf((currentTime / 100.0f) + y * 0.1f) * 10);
+                    Pen floorPen = gfx.create_pen(shade / 5, 20 + shade / 2 + pulse, 0);
+                    gfx.set_pen(floorPen);
+                    gfx.line(Point(0, y), Point(WIDTH - 1, y));
+                }
+                // Bubbles rising
+                for (int i = 0; i < 6; i++) {
+                    int x = (i * 11) % WIDTH;
+                    int y = HEIGHT / 2 + ((currentTime / 150 + i * 40) % 100) / 6;
+                    if (y < HEIGHT) {
+                        gfx.set_pen(gfx.create_pen(150, 200, 50));
+                        gfx.pixel(Point(x, y));
+                    }
+                }
+                break;
+            }
+
+            default:
+                break;
         }
     }
 
@@ -551,10 +880,43 @@ private:
                 shade = shade * 2 / 3;
             }
 
-            // Create wall color with distance-based darkening
-            int r = 0;
-            int g = shade / 4;  // More subtle green
-            int b = shade;       // Dominant blue
+            // Create wall color based on theme
+            int r, g, b;
+            switch(currentTheme) {
+                case Theme::HELL:
+                    // Dark red stone walls
+                    r = shade * 3 / 4;
+                    g = shade / 8;
+                    b = shade / 6;
+                    break;
+
+                case Theme::SPACE:
+                    // Metallic silver/blue walls
+                    r = shade / 3;
+                    g = shade / 3;
+                    b = shade;
+                    break;
+
+                case Theme::CYBER:
+                    // Purple/magenta neon walls
+                    r = shade * 2 / 3;
+                    g = shade / 6;
+                    b = shade;
+                    break;
+
+                case Theme::TOXIC:
+                    // Sickly yellow-green walls
+                    r = shade / 4;
+                    g = shade * 3 / 4;
+                    b = shade / 8;
+                    break;
+
+                default:
+                    r = 0;
+                    g = shade / 4;
+                    b = shade;
+                    break;
+            }
 
             Pen wallPen = gfx.create_pen(r, g, b);
             gfx.set_pen(wallPen);
@@ -593,8 +955,27 @@ private:
 
                     int screenY = HEIGHT / 2;
 
-                    // Draw bullet as a bright yellow/orange projectile
-                    Pen bulletPen = gfx.create_pen(255, 200, 0);
+                    // Draw bullet with color based on weapon type
+                    uint8_t r, g, b;
+                    switch (bullets[i].type) {
+                        case 0:  // Single - yellow/orange
+                            r = 255; g = 200; b = 0;
+                            break;
+                        case 1:  // Spread - green
+                            r = 150; g = 255; b = 150;
+                            break;
+                        case 2:  // Rapid - cyan
+                            r = 150; g = 255; b = 255;
+                            break;
+                        case 3:  // Plasma - magenta/purple
+                            r = 255; g = 150; b = 255;
+                            break;
+                        default:
+                            r = 255; g = 200; b = 0;
+                            break;
+                    }
+
+                    Pen bulletPen = gfx.create_pen(r, g, b);
                     gfx.set_pen(bulletPen);
 
                     for (int py = -bulletSize; py <= bulletSize; py++) {
@@ -781,6 +1162,44 @@ private:
     }
 
     void drawHUD(PicoGraphics_PenRGB888& gfx) {
+        // Health bar at bottom left
+        int healthBarWidth = 10;
+        int healthBarHeight = 2;
+        int healthBarX = 1;
+        int healthBarY = HEIGHT - 3;
+
+        // Background (black)
+        Pen bgPen = gfx.create_pen(0, 0, 0);
+        gfx.set_pen(bgPen);
+        for (int y = healthBarY; y < healthBarY + healthBarHeight; y++) {
+            for (int x = healthBarX; x < healthBarX + healthBarWidth; x++) {
+                gfx.pixel(Point(x, y));
+            }
+        }
+
+        // Health fill (color based on health percentage)
+        float healthPercent = (float)playerHealth / MAX_HEALTH;
+        int fillWidth = (int)(healthBarWidth * healthPercent);
+
+        Pen healthPen;
+        if (healthPercent > 0.6f) {
+            // Green when healthy
+            healthPen = gfx.create_pen(0, 255, 0);
+        } else if (healthPercent > 0.3f) {
+            // Amber when damaged
+            healthPen = gfx.create_pen(255, 150, 0);
+        } else {
+            // Red when critical
+            healthPen = gfx.create_pen(255, 0, 0);
+        }
+
+        gfx.set_pen(healthPen);
+        for (int y = healthBarY; y < healthBarY + healthBarHeight; y++) {
+            for (int x = healthBarX; x < healthBarX + fillWidth; x++) {
+                gfx.pixel(Point(x, y));
+            }
+        }
+
         // Crosshair - proper + shape with center pixel missing
         Pen crosshairPen = gfx.create_pen(200, 200, 200);
         gfx.set_pen(crosshairPen);
@@ -855,7 +1274,63 @@ private:
         }
     }
 
+    // Draw power-ups in 3D view
+    void drawPowerUps(PicoGraphics_PenRGB888& gfx) {
+        uint32_t currentTime = time_us_32() / 1000;
+
+        for (int i = 0; i < MAX_POWERUPS; i++) {
+            if (powerups[i].active) {
+                // Calculate power-up position relative to player
+                float dx = powerups[i].x - playerX;
+                float dy = powerups[i].y - playerY;
+                float powerupDist = sqrtf(dx * dx + dy * dy);
+
+                // Calculate angle relative to player view
+                float powerupAngle = atan2f(dy, dx);
+                float angleDiff = powerupAngle - playerAngle;
+
+                // Normalize angle
+                while (angleDiff > 3.14159f) angleDiff -= 6.28318f;
+                while (angleDiff < -3.14159f) angleDiff += 6.28318f;
+
+                // Only draw if power-up is in front of player and within FOV
+                if (powerupDist > 1.0f && fabsf(angleDiff) < FOV / 2.0f + 0.5f) {
+                    // Calculate screen X position
+                    int screenX = WIDTH / 2 + (int)((angleDiff / (FOV / 2.0f)) * (WIDTH / 2));
+
+                    // Calculate size based on distance
+                    int spriteSize = (int)(300.0f / powerupDist);
+                    if (spriteSize < 3) spriteSize = 3;
+                    if (spriteSize > 8) spriteSize = 8;
+
+                    int screenY = HEIGHT / 2;
+
+                    // Pulsing animation
+                    int pulse = ((currentTime / 100) % 10) > 5 ? 1 : 0;
+
+                    // Draw rotating power-up icon
+                    Pen powerupPen = gfx.create_pen(255, 200 + pulse * 55, 0);
+                    gfx.set_pen(powerupPen);
+
+                    // Draw as a diamond/star shape
+                    for (int py = -spriteSize/2; py <= spriteSize/2; py++) {
+                        for (int px = -spriteSize/2; px <= spriteSize/2; px++) {
+                            if (abs(px) + abs(py) <= spriteSize/2) {
+                                int x = screenX + px;
+                                int y = screenY + py;
+                                if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
+                                    gfx.pixel(Point(x, y));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     bool shouldExit = false;
+    bool buttonDPressed = false;
 
 public:
     DoomGame() {
@@ -895,14 +1370,82 @@ public:
         for (int i = 0; i < MAX_PARTICLES; i++) {
             particles[i].active = false;
         }
+
+        // Initialize theme system
+        currentTheme = Theme::HELL;
+        lastThemeChange = time_us_32() / 1000;
+        skyOffset = 0.0f;
+
+        // Initialize health system
+        playerHealth = MAX_HEALTH;
+        isDead = false;
+        deathTime = 0;
+
+        // Initialize weapon and power-ups
+        weaponType = 0;
+        for (int i = 0; i < MAX_POWERUPS; i++) {
+            powerups[i].active = false;
+        }
+    }
+
+    void resetGame() {
+        // Reset player
+        playerX = TILE_SIZE * 1.5f;
+        playerY = TILE_SIZE * 1.5f;
+        playerAngle = 0.0f;
+        playerHealth = MAX_HEALTH;
+        isDead = false;
+
+        // Clear enemies
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            enemies[i].active = false;
+        }
+
+        // Clear bullets
+        for (int i = 0; i < MAX_BULLETS; i++) {
+            bullets[i].active = false;
+        }
+
+        // Clear particles
+        for (int i = 0; i < MAX_PARTICLES; i++) {
+            particles[i].active = false;
+        }
+
+        // Clear power-ups
+        for (int i = 0; i < MAX_POWERUPS; i++) {
+            powerups[i].active = false;
+        }
     }
 
     bool update() override {
+        uint32_t currentTime = time_us_32() / 1000;
+
+        // Handle death and respawn
+        if (isDead) {
+            // Wait 2 seconds after death before respawning
+            if (currentTime - deathTime > 2000) {
+                resetGame();
+            }
+            // Update particles during death (for explosion)
+            updateParticles();
+            return !shouldExit;
+        }
+
         updateAI();
         updateBullets();
         updateEnemies();
         updateParticles();
+        updatePowerUps();
         checkCollisions();
+
+        // Auto-change themes periodically
+        if (currentTime - lastThemeChange > THEME_CHANGE_INTERVAL) {
+            // Cycle to next theme
+            int nextTheme = ((int)currentTheme + 1) % (int)Theme::COUNT;
+            currentTheme = (Theme)nextTheme;
+            lastThemeChange = currentTime;
+        }
+
         return !shouldExit;  // Return false to exit
     }
 
@@ -911,6 +1454,7 @@ public:
         drawSkyAndFloor(graphics);
         drawWalls(graphics);
         drawParticles(graphics);  // Draw explosion particles
+        drawPowerUps(graphics);    // Draw power-ups in 3D view
         drawEnemies(graphics);     // Draw enemies in 3D view
         drawBullets(graphics);     // Draw bullets in 3D view
         drawHUD(graphics);
@@ -922,6 +1466,14 @@ public:
         // Only exit on B button to avoid interfering with game
         if (button_b) {
             shouldExit = true;
+        }
+
+        // Button D to cycle weapons (for testing)
+        if (button_d && !buttonDPressed) {
+            weaponType = (weaponType + 1) % 4;
+            buttonDPressed = true;
+        } else if (!button_d) {
+            buttonDPressed = false;
         }
     }
 };
