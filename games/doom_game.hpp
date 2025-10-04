@@ -6,6 +6,7 @@
 #include <vector>
 #include "pico/stdlib.h"
 #include "../game_base.hpp"
+#include "../effects/lightning.hpp"
 
 using namespace pimoroni;
 
@@ -50,7 +51,10 @@ private:
     bool isRotating = false;
 
     // Weapon system
-    int weaponType = 0;  // 0=single, 1=spread, 2=rapid, 3=plasma
+    int weaponType = 0;  // 0=single, 1=spread, 2=rapid, 3=plasma, 4=lightning
+    Lightning lightning;
+    bool lightningFiring = false;
+    uint32_t lightningFireTime = 0;
 
     // Bullet system
     struct Bullet {
@@ -71,9 +75,36 @@ private:
         float x, y;
         bool active;
         uint32_t spawnTime;
+        float animPhase;
     };
     static constexpr int MAX_POWERUPS = 4;
     PowerUp powerups[MAX_POWERUPS];
+
+    // HSV to RGB conversion for fancy power-up colors
+    void hsv_to_rgb(float h, float s, float v, uint8_t &r, uint8_t &g, uint8_t &b) {
+        float c = v * s;
+        float x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
+        float m = v - c;
+        float r_prime, g_prime, b_prime;
+
+        if (h < 60) {
+            r_prime = c; g_prime = x; b_prime = 0;
+        } else if (h < 120) {
+            r_prime = x; g_prime = c; b_prime = 0;
+        } else if (h < 180) {
+            r_prime = 0; g_prime = c; b_prime = x;
+        } else if (h < 240) {
+            r_prime = 0; g_prime = x; b_prime = c;
+        } else if (h < 300) {
+            r_prime = x; g_prime = 0; b_prime = c;
+        } else {
+            r_prime = c; g_prime = 0; b_prime = x;
+        }
+
+        r = (uint8_t)((r_prime + m) * 255);
+        g = (uint8_t)((g_prime + m) * 255);
+        b = (uint8_t)((b_prime + m) * 255);
+    }
 
     // Enemy system
     struct Enemy {
@@ -195,8 +226,11 @@ private:
 
     // Shoot a bullet based on weapon type
     void shoot() {
-        muzzleFlash = 8;
-        gunRecoil = 4;
+        // Don't show muzzle flash/recoil for lightning weapon
+        if (weaponType != 4) {
+            muzzleFlash = 8;
+            gunRecoil = 4;
+        }
 
         switch (weaponType) {
             case 0: {  // Single shot
@@ -271,6 +305,27 @@ private:
                 }
                 break;
             }
+
+            case 4: {  // Lightning (fired from gun tip)
+                // Trigger lightning effect
+                lightningFiring = true;
+                lightningFireTime = time_us_32() / 1000;
+
+                // Fire 3 lightning strikes from gun position
+                // Gun is at bottom center of screen
+                float startScreenX = WIDTH / 2.0f;
+                float startScreenY = HEIGHT - 2.0f;  // Near bottom
+
+                // Fire 3 strikes with slight variations
+                for (int strike = 0; strike < 3; strike++) {
+                    // Vary the end position slightly for each strike
+                    float endScreenX = WIDTH / 2.0f + (strike - 1) * 2.0f;  // Spread strikes horizontally
+                    float endScreenY = HEIGHT / 2.0f - 5.0f + (strike - 1) * 1.0f;  // Slight vertical variation
+
+                    lightning.triggerStrike(startScreenX, startScreenY, endScreenX, endScreenY);
+                }
+                break;
+            }
         }
     }
 
@@ -278,10 +333,10 @@ private:
     void updateBullets() {
         for (int i = 0; i < MAX_BULLETS; i++) {
             if (bullets[i].active) {
-                // Move bullet forward
-                bullets[i].distance += 5.0f;
-                bullets[i].x += cosf(bullets[i].angle) * 5.0f;
-                bullets[i].y += sinf(bullets[i].angle) * 5.0f;
+                // Move bullet forward (twice as fast)
+                bullets[i].distance += 10.0f;
+                bullets[i].x += cosf(bullets[i].angle) * 10.0f;
+                bullets[i].y += sinf(bullets[i].angle) * 10.0f;
 
                 // Check if bullet hit a wall or traveled too far
                 int gridX = (int)(bullets[i].x / TILE_SIZE);
@@ -523,6 +578,7 @@ private:
 
     // Check bullet-enemy collisions
     void checkCollisions() {
+        // Regular bullet collisions
         for (int b = 0; b < MAX_BULLETS; b++) {
             if (!bullets[b].active) continue;
 
@@ -552,6 +608,40 @@ private:
                 }
             }
         }
+
+        // Lightning weapon damage (hits all enemies in cone)
+        if (lightningFiring) {
+            for (int e = 0; e < MAX_ENEMIES; e++) {
+                if (!enemies[e].active) continue;
+
+                // Check if enemy is in front of player (in lightning cone)
+                float dx = enemies[e].x - playerX;
+                float dy = enemies[e].y - playerY;
+                float dist = sqrtf(dx * dx + dy * dy);
+
+                float enemyAngle = atan2f(dy, dx);
+                float angleDiff = enemyAngle - playerAngle;
+
+                // Normalize angle
+                while (angleDiff > 3.14159f) angleDiff -= 6.28318f;
+                while (angleDiff < -3.14159f) angleDiff += 6.28318f;
+
+                // Lightning hits in a cone (30 degrees, 200 units range)
+                if (dist < 200.0f && fabsf(angleDiff) < 0.26f) {  // ~30 degree cone
+                    enemies[e].health -= 2;  // Lightning does more damage
+
+                    if (enemies[e].health <= 0) {
+                        spawnExplosion(enemies[e].x, enemies[e].y);
+
+                        if (rand() % 2 == 0) {
+                            spawnPowerUp(enemies[e].x, enemies[e].y);
+                        }
+
+                        enemies[e].active = false;
+                    }
+                }
+            }
+        }
     }
 
     // Spawn a power-up
@@ -562,6 +652,7 @@ private:
                 powerups[i].y = y;
                 powerups[i].active = true;
                 powerups[i].spawnTime = time_us_32() / 1000;
+                powerups[i].animPhase = 0.0f;
                 break;
             }
         }
@@ -573,6 +664,12 @@ private:
 
         for (int i = 0; i < MAX_POWERUPS; i++) {
             if (powerups[i].active) {
+                // Update animation phase
+                powerups[i].animPhase += 0.1f;
+                if (powerups[i].animPhase > 360.0f) {
+                    powerups[i].animPhase -= 360.0f;
+                }
+
                 // Check if player picks up the power-up
                 float dx = playerX - powerups[i].x;
                 float dy = playerY - powerups[i].y;
@@ -580,7 +677,7 @@ private:
 
                 if (dist < 20.0f) {
                     // Pick up power-up - cycle to next weapon
-                    weaponType = (weaponType + 1) % 4;
+                    weaponType = (weaponType + 1) % 5;  // 5 weapons (0-4)
                     powerups[i].active = false;
                 }
 
@@ -1276,8 +1373,6 @@ private:
 
     // Draw power-ups in 3D view
     void drawPowerUps(PicoGraphics_PenRGB888& gfx) {
-        uint32_t currentTime = time_us_32() / 1000;
-
         for (int i = 0; i < MAX_POWERUPS; i++) {
             if (powerups[i].active) {
                 // Calculate power-up position relative to player
@@ -1305,14 +1400,18 @@ private:
 
                     int screenY = HEIGHT / 2;
 
-                    // Pulsing animation
-                    int pulse = ((currentTime / 100) % 10) > 5 ? 1 : 0;
+                    // Pulsing animation using sine wave
+                    float pulse = sinf(powerups[i].animPhase * 0.0174533f) * 0.5f + 0.5f;  // 0.0-1.0
 
-                    // Draw rotating power-up icon
-                    Pen powerupPen = gfx.create_pen(255, 200 + pulse * 55, 0);
+                    // Rainbow color cycling (HSV)
+                    uint8_t r, g, b;
+                    float hue = fmodf(powerups[i].animPhase * 2.0f, 360.0f);  // Cycle through hues
+                    hsv_to_rgb(hue, 1.0f, pulse * 0.7f + 0.3f, r, g, b);  // Pulse brightness
+
+                    // Draw main power-up body as a rotating diamond/star
+                    Pen powerupPen = gfx.create_pen(r, g, b);
                     gfx.set_pen(powerupPen);
 
-                    // Draw as a diamond/star shape
                     for (int py = -spriteSize/2; py <= spriteSize/2; py++) {
                         for (int px = -spriteSize/2; px <= spriteSize/2; px++) {
                             if (abs(px) + abs(py) <= spriteSize/2) {
@@ -1323,6 +1422,34 @@ private:
                                 }
                             }
                         }
+                    }
+
+                    // Add white sparkle effect in cross pattern
+                    if ((int)(powerups[i].animPhase / 12.0f) % 3 == 0 && spriteSize >= 4) {
+                        gfx.set_pen(gfx.create_pen(255, 255, 255));
+                        int sparkleSize = spriteSize / 2 + 1;
+
+                        // Horizontal sparkle
+                        if (screenX + sparkleSize < WIDTH) {
+                            gfx.pixel(Point(screenX + sparkleSize, screenY));
+                        }
+                        if (screenX - sparkleSize >= 0) {
+                            gfx.pixel(Point(screenX - sparkleSize, screenY));
+                        }
+
+                        // Vertical sparkle
+                        if (screenY + sparkleSize < HEIGHT) {
+                            gfx.pixel(Point(screenX, screenY + sparkleSize));
+                        }
+                        if (screenY - sparkleSize >= 0) {
+                            gfx.pixel(Point(screenX, screenY - sparkleSize));
+                        }
+                    }
+
+                    // Add bright center pixel for extra pop
+                    if (pulse > 0.7f) {
+                        gfx.set_pen(gfx.create_pen(255, 255, 255));
+                        gfx.pixel(Point(screenX, screenY));
                     }
                 }
             }
@@ -1386,6 +1513,10 @@ public:
         for (int i = 0; i < MAX_POWERUPS; i++) {
             powerups[i].active = false;
         }
+
+        // Initialize lightning effect
+        lightning.init();
+        lightningFiring = false;
     }
 
     void resetGame() {
@@ -1438,6 +1569,15 @@ public:
         updatePowerUps();
         checkCollisions();
 
+        // Update lightning effect
+        float dt = 0.05f;  // 50ms per frame
+        lightning.update(dt);
+
+        // Reset lightning firing flag after duration
+        if (lightningFiring && currentTime - lightningFireTime > 200) {
+            lightningFiring = false;
+        }
+
         // Auto-change themes periodically
         if (currentTime - lastThemeChange > THEME_CHANGE_INTERVAL) {
             // Cycle to next theme
@@ -1458,6 +1598,9 @@ public:
         drawEnemies(graphics);     // Draw enemies in 3D view
         drawBullets(graphics);     // Draw bullets in 3D view
         drawHUD(graphics);
+
+        // Draw lightning effect on top of everything except HUD
+        lightning.render(&graphics);
     }
 
     void handleInput(bool button_a, bool button_b, bool button_c, bool button_d,
@@ -1470,7 +1613,7 @@ public:
 
         // Button D to cycle weapons (for testing)
         if (button_d && !buttonDPressed) {
-            weaponType = (weaponType + 1) % 4;
+            weaponType = (weaponType + 1) % 5;  // 5 weapons (0-4)
             buttonDPressed = true;
         } else if (!button_d) {
             buttonDPressed = false;
