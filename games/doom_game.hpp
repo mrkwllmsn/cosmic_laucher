@@ -363,18 +363,6 @@ private:
         int gunX = WIDTH / 2;
         int gunY = HEIGHT - 6 + (gunRecoil / 2);  // Recoil moves gun up
 
-        // Draw black background behind gun first (prevents see-through)
-        Pen blackPen = gfx.create_pen(0, 0, 0);
-        gfx.set_pen(blackPen);
-        for (int py = gunY; py <= HEIGHT - 1; py++) {
-            for (int px = gunX - 3; px <= gunX + 3; px++) {
-                if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
-                    gfx.pixel(Point(px, py));
-                }
-            }
-        }
-
-        // Now draw the gun on top
         Pen gunPen = gfx.create_pen(60, 60, 60);
         gfx.set_pen(gunPen);
 
@@ -391,6 +379,19 @@ private:
         gfx.pixel(Point(gunX, gunY + 4));
         gfx.pixel(Point(gunX + 1, gunY + 4));
         gfx.pixel(Point(gunX + 2, gunY + 4));
+
+        // Fill gaps with black (row 4: center 3 pixels, bottom row: all 5 pixels)
+        Pen blackPen = gfx.create_pen(0, 0, 0);
+        gfx.set_pen(blackPen);
+
+        // Row 4 (gunY + 4) - fill center 3 pixels where gun body doesn't reach
+        // (gun body only has pixels at -2, -1, 0, +1, +2, but we need to fill any gaps)
+        // Actually row 4 is already filled by gun body, so fill row 5 completely
+        gfx.pixel(Point(gunX - 2, gunY + 5));
+        gfx.pixel(Point(gunX - 1, gunY + 5));
+        gfx.pixel(Point(gunX, gunY + 5));
+        gfx.pixel(Point(gunX + 1, gunY + 5));
+        gfx.pixel(Point(gunX + 2, gunY + 5));
 
         // Muzzle flash when shooting
         if (muzzleFlash > 0) {
