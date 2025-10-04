@@ -15,6 +15,7 @@
 #include "games/qix_game.hpp"
 #include "games/afterburner_game.hpp"
 #include "games/donkey_kong_game.hpp"
+#include "games/demo_mode_game.hpp"
 #include "wifi_config.hpp"
 
 using namespace pimoroni;
@@ -38,14 +39,18 @@ void initializeLauncher() {
     stdio_init_all();
     cosmic_unicorn.init();
     cosmic_unicorn.set_brightness(0.5f);
-    
+
     // Initialize graphics
     graphics.set_pen(graphics.create_pen(0, 0, 0));
     graphics.clear();
-    
+
     // Initialize menu
     menu.init(graphics);
-    
+
+    // Create demo mode game
+    auto demo_game = std::make_unique<DemoModeGame>();
+    demo_game->setDemoDuration(30); // 30 seconds per game
+
     // Add all games to menu
     menu.addGame("SPOOK", "Halloween spookiness", std::make_unique<HalloweenGame>());
     menu.addGame("P-TYPE", "Side-scrolling space shooter", std::make_unique<SideScrollerGame>());
@@ -56,6 +61,13 @@ void initializeLauncher() {
     menu.addGame("BLOCKS", "Classic block puzzle", std::make_unique<TetrisGame>());
     menu.addGame("ABURN", "Fly over ocean, shoot enemies", std::make_unique<AfterburnerGame>());
     menu.addGame("PRETTY", "Visual shader effects", std::make_unique<ShaderEffectsGame>());
+
+    // Setup demo mode with all games (except demo itself)
+    std::vector<GameBase*> demo_games = menu.getAllGames();
+    demo_game->setDemoGames(demo_games);
+
+    // Add demo mode as first menu item
+    menu.addGameAtIndex(0, "DEMO", "Cycle through all games", std::move(demo_game));
 }
 
 void readInputs(bool& button_a, bool& button_b, bool& button_c, bool& button_d,

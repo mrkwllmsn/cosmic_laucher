@@ -58,6 +58,22 @@ public:
     void addGame(const char* name, const char* description, std::unique_ptr<GameBase> game) {
         menu_items.emplace_back(name, description, std::move(game));
     }
+
+    void addGameAtIndex(int index, const char* name, const char* description, std::unique_ptr<GameBase> game) {
+        if (index >= 0 && index <= (int)menu_items.size()) {
+            menu_items.insert(menu_items.begin() + index, MenuItem(name, description, std::move(game)));
+        } else {
+            addGame(name, description, std::move(game));
+        }
+    }
+
+    std::vector<GameBase*> getAllGames() {
+        std::vector<GameBase*> games;
+        for (auto& item : menu_items) {
+            games.push_back(item.game.get());
+        }
+        return games;
+    }
     
     void init(PicoGraphics_PenRGB888& gfx) {
         bg_pen = gfx.create_pen(0, 0, 20);
