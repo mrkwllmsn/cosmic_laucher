@@ -64,8 +64,15 @@ private:
         bool active;
         uint32_t spawnTime;
         int type;  // Weapon type that fired this bullet
+        float speed;  // Bullet speed (pixels per frame)
+        struct TrailPoint {
+            float x, y;
+            bool active;
+        };
+        TrailPoint trail[5];  // Trail points for tracer effect
+        int trailIndex;
     };
-    static constexpr int MAX_BULLETS = 12;  // Increased for spread/rapid weapons
+    static constexpr int MAX_BULLETS = 8;  // Reduced since we only fire single shots now
     Bullet bullets[MAX_BULLETS];
     int muzzleFlash = 0;  // Muzzle flash animation counter
     int gunRecoil = 0;    // Gun recoil animation counter
@@ -78,6 +85,7 @@ private:
         bool active;
         uint32_t spawnTime;
         float animPhase;
+        int type;  // 0=weapon upgrade, 1=health pack
     };
     static constexpr int MAX_POWERUPS = 4;
     PowerUp powerups[MAX_POWERUPS];
@@ -150,6 +158,17 @@ private:
     uint32_t lastThemeChange = 0;
     static constexpr uint32_t THEME_CHANGE_INTERVAL = 20000;  // 20 seconds
     float skyOffset = 0.0f;  // For parallax scrolling
+
+    // Theme transition state
+    enum class TransitionState {
+        NORMAL,
+        FADING_OUT,
+        FADING_IN
+    };
+    TransitionState transitionState = TransitionState::NORMAL;
+    uint32_t transitionStartTime = 0;
+    static constexpr uint32_t FADE_DURATION = 500;  // 500ms fade duration
+    Theme nextTheme = Theme::HELL;
 
     struct Ray {
         float distance;
@@ -242,7 +261,10 @@ private:
         currentBrightness = 1.0f;
 
         switch (weaponType) {
-            case 0: {  // Single shot
+            case 0:   // Single shot - standard speed, yellow
+            case 1:   // Spread shot - now just fast green tracer
+            case 2:   // Rapid fire - now just very fast cyan tracer
+            case 3: { // Plasma - now just slow purple tracer
                 for (int i = 0; i < MAX_BULLETS; i++) {
                     if (!bullets[i].active) {
                         bullets[i].x = playerX;
@@ -252,64 +274,21 @@ private:
                         bullets[i].active = true;
                         bullets[i].spawnTime = time_us_32() / 1000;
                         bullets[i].type = weaponType;
+                        bullets[i].trailIndex = 0;
+
+                        // Set speed based on weapon type
+                        switch (weaponType) {
+                            case 0: bullets[i].speed = 10.0f; break;  // Standard
+                            case 1: bullets[i].speed = 15.0f; break;  // Fast
+                            case 2: bullets[i].speed = 20.0f; break;  // Very fast
+                            case 3: bullets[i].speed = 7.0f; break;   // Slow
+                        }
+
+                        // Initialize trail
+                        for (int t = 0; t < 5; t++) {
+                            bullets[i].trail[t].active = false;
+                        }
                         break;
-                    }
-                }
-                break;
-            }
-
-            case 1: {  // Spread shot (3 bullets)
-                float spread = 0.3f;
-                float angles[] = {playerAngle - spread, playerAngle, playerAngle + spread};
-                for (int a = 0; a < 3; a++) {
-                    for (int i = 0; i < MAX_BULLETS; i++) {
-                        if (!bullets[i].active) {
-                            bullets[i].x = playerX;
-                            bullets[i].y = playerY;
-                            bullets[i].angle = angles[a];
-                            bullets[i].distance = 0;
-                            bullets[i].active = true;
-                            bullets[i].spawnTime = time_us_32() / 1000;
-                            bullets[i].type = weaponType;
-                            break;
-                        }
-                    }
-                }
-                break;
-            }
-
-            case 2: {  // Rapid fire (2 bullets slightly offset)
-                for (int b = 0; b < 2; b++) {
-                    for (int i = 0; i < MAX_BULLETS; i++) {
-                        if (!bullets[i].active) {
-                            bullets[i].x = playerX;
-                            bullets[i].y = playerY;
-                            bullets[i].angle = playerAngle + (b == 0 ? -0.1f : 0.1f);
-                            bullets[i].distance = 0;
-                            bullets[i].active = true;
-                            bullets[i].spawnTime = time_us_32() / 1000;
-                            bullets[i].type = weaponType;
-                            break;
-                        }
-                    }
-                }
-                break;
-            }
-
-            case 3: {  // Plasma wave (5 bullets in wide spread)
-                float spread = 0.15f;
-                for (int a = -2; a <= 2; a++) {
-                    for (int i = 0; i < MAX_BULLETS; i++) {
-                        if (!bullets[i].active) {
-                            bullets[i].x = playerX;
-                            bullets[i].y = playerY;
-                            bullets[i].angle = playerAngle + (a * spread);
-                            bullets[i].distance = 0;
-                            bullets[i].active = true;
-                            bullets[i].spawnTime = time_us_32() / 1000;
-                            bullets[i].type = weaponType;
-                            break;
-                        }
                     }
                 }
                 break;
@@ -342,10 +321,16 @@ private:
     void updateBullets() {
         for (int i = 0; i < MAX_BULLETS; i++) {
             if (bullets[i].active) {
-                // Move bullet forward (twice as fast)
-                bullets[i].distance += 10.0f;
-                bullets[i].x += cosf(bullets[i].angle) * 10.0f;
-                bullets[i].y += sinf(bullets[i].angle) * 10.0f;
+                // Store current position in trail before moving
+                bullets[i].trail[bullets[i].trailIndex].x = bullets[i].x;
+                bullets[i].trail[bullets[i].trailIndex].y = bullets[i].y;
+                bullets[i].trail[bullets[i].trailIndex].active = true;
+                bullets[i].trailIndex = (bullets[i].trailIndex + 1) % 5;
+
+                // Move bullet forward using its speed
+                bullets[i].distance += bullets[i].speed;
+                bullets[i].x += cosf(bullets[i].angle) * bullets[i].speed;
+                bullets[i].y += sinf(bullets[i].angle) * bullets[i].speed;
 
                 // Check if bullet hit a wall or traveled too far
                 int gridX = (int)(bullets[i].x / TILE_SIZE);
@@ -662,6 +647,8 @@ private:
                 powerups[i].active = true;
                 powerups[i].spawnTime = time_us_32() / 1000;
                 powerups[i].animPhase = 0.0f;
+                // 50% chance of med pack, 50% chance of weapon upgrade
+                powerups[i].type = (rand() % 2);
                 break;
             }
         }
@@ -685,8 +672,14 @@ private:
                 float dist = sqrtf(dx * dx + dy * dy);
 
                 if (dist < 20.0f) {
-                    // Pick up power-up - cycle to next weapon
-                    weaponType = (weaponType + 1) % 5;  // 5 weapons (0-4)
+                    // Pick up power-up
+                    if (powerups[i].type == 0) {
+                        // Weapon upgrade
+                        weaponType = (weaponType + 1) % 5;  // 5 weapons (0-4)
+                    } else {
+                        // Health pack - restore 25 health
+                        playerHealth = (playerHealth + 25 > MAX_HEALTH) ? MAX_HEALTH : playerHealth + 25;
+                    }
                     powerups[i].active = false;
                 }
 
@@ -1003,9 +996,9 @@ private:
 
                 // Icy floor with cracks
                 for (int y = HEIGHT / 2; y < HEIGHT; y++) {
-                    int shade = ((y - HEIGHT / 2) * 100) / (HEIGHT / 2);
-                    int sparkle = ((currentTime / 100 + y * 3) % 30) - 15;
-                    Pen floorPen = gfx.create_pen(150 + shade / 2 + sparkle / 2, 180 + shade / 2 + sparkle / 2, 200 + shade / 2);
+                    int shade = ((y - HEIGHT / 2) * 60) / (HEIGHT / 2);
+                    int sparkle = ((currentTime / 100 + y * 3) % 20) - 10;
+                    Pen floorPen = gfx.create_pen(80 + shade / 2 + sparkle / 2, 100 + shade / 2 + sparkle / 2, 120 + shade / 2);
                     gfx.set_pen(floorPen);
                     for (int x = 0; x < WIDTH; x++) {
                         gfx.pixel(Point(x, y));
@@ -1347,66 +1340,85 @@ private:
         }
     }
 
-    // Draw bullets in 3D view
+    // Draw bullets in 3D view with trail effect
     void drawBullets(PicoGraphics_PenRGB888& gfx) {
         for (int i = 0; i < MAX_BULLETS; i++) {
             if (bullets[i].active) {
-                // Calculate bullet position relative to player
+                // Get base color for this weapon type
+                uint8_t base_r, base_g, base_b;
+                switch (bullets[i].type) {
+                    case 0:  // Single - yellow/orange
+                        base_r = 255; base_g = 200; base_b = 0;
+                        break;
+                    case 1:  // Spread - green
+                        base_r = 100; base_g = 255; base_b = 100;
+                        break;
+                    case 2:  // Rapid - cyan
+                        base_r = 100; base_g = 255; base_b = 255;
+                        break;
+                    case 3:  // Plasma - magenta/purple
+                        base_r = 255; base_g = 100; base_b = 255;
+                        break;
+                    default:
+                        base_r = 255; base_g = 200; base_b = 0;
+                        break;
+                }
+
+                // Draw trail points (oldest to newest, fading)
+                for (int t = 0; t < 5; t++) {
+                    int trailIdx = (bullets[i].trailIndex + t) % 5;
+                    if (bullets[i].trail[trailIdx].active) {
+                        float dx = bullets[i].trail[trailIdx].x - playerX;
+                        float dy = bullets[i].trail[trailIdx].y - playerY;
+                        float trailDist = sqrtf(dx * dx + dy * dy);
+
+                        float trailAngle = atan2f(dy, dx);
+                        float angleDiff = trailAngle - playerAngle;
+                        while (angleDiff > 3.14159f) angleDiff -= 6.28318f;
+                        while (angleDiff < -3.14159f) angleDiff += 6.28318f;
+
+                        if (trailDist > 1.0f && fabsf(angleDiff) < FOV / 2.0f) {
+                            int screenX = WIDTH / 2 + (int)((angleDiff / (FOV / 2.0f)) * (WIDTH / 2));
+                            int screenY = HEIGHT / 2;
+
+                            // Fade based on age (newer = brighter)
+                            float fade = (float)(t + 1) / 5.0f;
+                            uint8_t r = (uint8_t)(base_r * fade);
+                            uint8_t g = (uint8_t)(base_g * fade);
+                            uint8_t b = (uint8_t)(base_b * fade);
+
+                            gfx.set_pen(gfx.create_pen(r, g, b));
+                            if (screenX >= 0 && screenX < WIDTH && screenY >= 0 && screenY < HEIGHT) {
+                                gfx.pixel(Point(screenX, screenY));
+                            }
+                        }
+                    }
+                }
+
+                // Draw main bullet (bright)
                 float dx = bullets[i].x - playerX;
                 float dy = bullets[i].y - playerY;
                 float bulletDist = sqrtf(dx * dx + dy * dy);
 
-                // Calculate angle relative to player view
                 float bulletAngle = atan2f(dy, dx);
                 float angleDiff = bulletAngle - playerAngle;
-
-                // Normalize angle
                 while (angleDiff > 3.14159f) angleDiff -= 6.28318f;
                 while (angleDiff < -3.14159f) angleDiff += 6.28318f;
 
-                // Only draw if bullet is in front of player and within FOV
                 if (bulletDist > 1.0f && fabsf(angleDiff) < FOV / 2.0f) {
-                    // Calculate screen X position
                     int screenX = WIDTH / 2 + (int)((angleDiff / (FOV / 2.0f)) * (WIDTH / 2));
-
-                    // Calculate screen Y position based on distance
-                    int bulletSize = (int)(100.0f / bulletDist);
-                    if (bulletSize < 1) bulletSize = 1;
-                    if (bulletSize > 4) bulletSize = 4;
-
                     int screenY = HEIGHT / 2;
 
-                    // Draw bullet with color based on weapon type
-                    uint8_t r, g, b;
-                    switch (bullets[i].type) {
-                        case 0:  // Single - yellow/orange
-                            r = 255; g = 200; b = 0;
-                            break;
-                        case 1:  // Spread - green
-                            r = 150; g = 255; b = 150;
-                            break;
-                        case 2:  // Rapid - cyan
-                            r = 150; g = 255; b = 255;
-                            break;
-                        case 3:  // Plasma - magenta/purple
-                            r = 255; g = 150; b = 255;
-                            break;
-                        default:
-                            r = 255; g = 200; b = 0;
-                            break;
+                    // Draw bright bullet head
+                    gfx.set_pen(gfx.create_pen(base_r, base_g, base_b));
+                    if (screenX >= 0 && screenX < WIDTH && screenY >= 0 && screenY < HEIGHT) {
+                        gfx.pixel(Point(screenX, screenY));
                     }
 
-                    Pen bulletPen = gfx.create_pen(r, g, b);
-                    gfx.set_pen(bulletPen);
-
-                    for (int py = -bulletSize; py <= bulletSize; py++) {
-                        for (int px = -bulletSize; px <= bulletSize; px++) {
-                            int x = screenX + px;
-                            int y = screenY + py;
-                            if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
-                                gfx.pixel(Point(x, y));
-                            }
-                        }
+                    // Add bright center glow
+                    gfx.set_pen(gfx.create_pen(255, 255, 255));
+                    if (screenX >= 0 && screenX < WIDTH && screenY >= 0 && screenY < HEIGHT) {
+                        gfx.pixel(Point(screenX, screenY));
                     }
                 }
             }
@@ -1727,10 +1739,18 @@ private:
                     // Pulsing animation using sine wave
                     float pulse = sinf(powerups[i].animPhase * 0.0174533f) * 0.5f + 0.5f;  // 0.0-1.0
 
-                    // Rainbow color cycling (HSV)
                     uint8_t r, g, b;
-                    float hue = fmodf(powerups[i].animPhase * 2.0f, 360.0f);  // Cycle through hues
-                    hsv_to_rgb(hue, 1.0f, pulse * 0.7f + 0.3f, r, g, b);  // Pulse brightness
+                    if (powerups[i].type == 0) {
+                        // Weapon upgrade - Rainbow color cycling (HSV)
+                        float hue = fmodf(powerups[i].animPhase * 2.0f, 360.0f);  // Cycle through hues
+                        hsv_to_rgb(hue, 1.0f, pulse * 0.7f + 0.3f, r, g, b);  // Pulse brightness
+                    } else {
+                        // Health pack - Red/white pulsing
+                        int brightness = (int)(pulse * 200.0f + 55.0f);
+                        r = brightness;
+                        g = brightness / 4;
+                        b = brightness / 4;
+                    }
 
                     // Draw main power-up body as a rotating diamond/star
                     Pen powerupPen = gfx.create_pen(r, g, b);
@@ -1908,19 +1928,61 @@ public:
             lightningFiring = false;
         }
 
-        // Auto-change themes periodically
-        if (currentTime - lastThemeChange > THEME_CHANGE_INTERVAL) {
-            // Cycle to next theme
-            int nextTheme = ((int)currentTheme + 1) % (int)Theme::COUNT;
-            currentTheme = (Theme)nextTheme;
-            lastThemeChange = currentTime;
+        // Auto-change themes periodically with fade transition
+        if (transitionState == TransitionState::NORMAL) {
+            if (currentTime - lastThemeChange > THEME_CHANGE_INTERVAL) {
+                // Start fade out
+                transitionState = TransitionState::FADING_OUT;
+                transitionStartTime = currentTime;
+                nextTheme = (Theme)(((int)currentTheme + 1) % (int)Theme::COUNT);
+            }
+        } else if (transitionState == TransitionState::FADING_OUT) {
+            uint32_t elapsed = currentTime - transitionStartTime;
+            if (elapsed >= FADE_DURATION) {
+                // Fade out complete, switch theme and start fade in
+                currentTheme = nextTheme;
+                transitionState = TransitionState::FADING_IN;
+                transitionStartTime = currentTime;
+                lastThemeChange = currentTime;
+            } else {
+                // Fade out: reduce brightness
+                targetBrightness = 0.0f;
+            }
+        } else if (transitionState == TransitionState::FADING_IN) {
+            uint32_t elapsed = currentTime - transitionStartTime;
+            if (elapsed >= FADE_DURATION) {
+                // Fade in complete
+                transitionState = TransitionState::NORMAL;
+                targetBrightness = 0.7f;
+            } else {
+                // Fade in: increase brightness
+                targetBrightness = 0.7f;
+            }
         }
 
-        // Smooth brightness fade back to 0.7
-        if (currentBrightness > targetBrightness) {
-            currentBrightness -= 0.05f;  // Fade down by 0.05 per frame
-            if (currentBrightness < targetBrightness) {
-                currentBrightness = targetBrightness;
+        // Smooth brightness transitions
+        if (transitionState == TransitionState::FADING_OUT) {
+            // Fast fade to black
+            float fadeProgress = (float)(currentTime - transitionStartTime) / FADE_DURATION;
+            currentBrightness = 0.7f * (1.0f - fadeProgress);
+            if (currentBrightness < 0.0f) currentBrightness = 0.0f;
+        } else if (transitionState == TransitionState::FADING_IN) {
+            // Fast fade from black
+            float fadeProgress = (float)(currentTime - transitionStartTime) / FADE_DURATION;
+            currentBrightness = 0.7f * fadeProgress;
+            if (currentBrightness > 0.7f) currentBrightness = 0.7f;
+        } else {
+            // Normal smooth fade (e.g., after muzzle flash)
+            if (currentBrightness > targetBrightness) {
+                currentBrightness -= 0.05f;
+                if (currentBrightness < targetBrightness) {
+                    currentBrightness = targetBrightness;
+                }
+            } else if (currentBrightness < targetBrightness) {
+                currentBrightness += 0.05f;
+                if (currentBrightness > targetBrightness) {
+                    currentBrightness = targetBrightness;
+                }
             }
         }
 
