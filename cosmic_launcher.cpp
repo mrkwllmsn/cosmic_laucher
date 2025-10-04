@@ -17,6 +17,7 @@
 #include "games/donkey_kong_game.hpp"
 #include "games/demo_mode_game.hpp"
 #include "games/spiral_game.hpp"
+#include "games/circles_game.hpp"
 #include "wifi_config.hpp"
 
 using namespace pimoroni;
@@ -39,7 +40,7 @@ const uint32_t target_frame_time = 50; // 20 FPS
 void initializeLauncher() {
     stdio_init_all();
     cosmic_unicorn.init();
-    cosmic_unicorn.set_brightness(0.5f);
+    cosmic_unicorn.set_brightness(0.9f);
 
     // Initialize graphics
     graphics.set_pen(graphics.create_pen(0, 0, 0));
@@ -60,9 +61,10 @@ void initializeLauncher() {
     menu.addGame("KONG", "Climb to save the princess!", std::make_unique<DonkeyKongGame>());
     menu.addGame("QIX", "Claim territory while avoiding the Qix!", std::make_unique<QixGame>());
     menu.addGame("BLOCKS", "Classic block puzzle", std::make_unique<TetrisGame>());
-    menu.addGame("ABURN", "Fly over ocean, shoot enemies", std::make_unique<AfterburnerGame>());
-    menu.addGame("PRETTY", "Visual shader effects", std::make_unique<ShaderEffectsGame>());
+    menu.addGame("FLIGHT", "Fly over ocean, shoot enemies", std::make_unique<AfterburnerGame>());
+    menu.addGame("BLOBS", "Visual shader effects", std::make_unique<ShaderEffectsGame>());
     menu.addGame("SPIRAL", "Mathematical number spiral", std::make_unique<SpiralGame>());
+    menu.addGame("CIRCLE", "Recursive circle patterns", std::make_unique<CirclesGame>());
 
     // Setup demo mode with all games (except demo itself)
     std::vector<GameBase*> demo_games = menu.getAllGames();
@@ -139,13 +141,25 @@ void handleBrightnessControls(bool button_bright_up, bool button_bright_down) {
 void updateLauncher() {
     bool button_a, button_b, button_c, button_d;
     bool button_vol_up, button_vol_down, button_bright_up, button_bright_down;
-    
+
     readInputs(button_a, button_b, button_c, button_d,
                button_vol_up, button_vol_down, button_bright_up, button_bright_down);
-    
+
     // Handle brightness controls globally
     handleBrightnessControls(button_bright_up, button_bright_down);
-    
+
+    // Check for SLEEP button - always returns to menu
+    bool button_sleep = cosmic_unicorn.is_pressed(CosmicUnicorn::SWITCH_SLEEP);
+    static bool sleep_was_pressed = false;
+
+    if (button_sleep && !sleep_was_pressed && current_state == LauncherState::PLAYING_GAME) {
+        sleep_was_pressed = true;
+        current_state = LauncherState::EXITING_GAME;
+        printf("SLEEP pressed - returning to menu\n");
+    } else if (!button_sleep) {
+        sleep_was_pressed = false;
+    }
+
     switch (current_state) {
         case LauncherState::MENU: {
             GameBase* selected_game = menu.update(button_a, button_b, button_c);
@@ -156,24 +170,24 @@ void updateLauncher() {
             }
             break;
         }
-        
+
         case LauncherState::PLAYING_GAME: {
             if (current_game) {
                 // Pass input to current game
                 current_game->handleInput(button_a, button_b, button_c, button_d,
                                          button_vol_up, button_vol_down,
                                          button_bright_up, button_bright_down);
-                
+
                 // Update game state
                 bool continue_game = current_game->update();
-                
+
                 if (!continue_game) {
                     current_state = LauncherState::EXITING_GAME;
                 }
             }
             break;
         }
-        
+
         case LauncherState::EXITING_GAME: {
             if (current_game) {
                 current_game->cleanup();

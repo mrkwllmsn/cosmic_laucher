@@ -26,6 +26,9 @@ private:
     bool show_trails = false;
     bool show_lengths = false; // Color lines by their length
     bool dim_dir = true;      // Direction of dimension animation
+    bool zoom_dir = true;     // Direction of zoom animation
+    uint32_t last_zoom_change = 0;
+    uint32_t zoom_change_interval = 47000; // Change zoom direction every 47 seconds
     uint32_t last_base_change = 0;
     uint32_t base_change_interval = 30000; // Change base every 30 seconds (configurable)
     uint32_t last_lines_toggle = 0;
@@ -159,16 +162,21 @@ private:
         // Draw connecting lines with gradient colors or length-based colors
         if (show_lines && point_count > 1) {
             for (int i = 0; i < point_count - 1; i++) {
+                // Calculate line length
+                int dx = points[i + 1].x - points[i].x;
+                int dy = points[i + 1].y - points[i].y;
+                float length = sqrt(dx * dx + dy * dy);
+
+                // Skip lines that are too long (likely wrapping around or going off-screen)
+                if (length > 25.0f) {
+                    continue;
+                }
+
                 uint8_t r = 0, g = 0, b = 0;
 
                 if (show_lengths) {
-                    // Calculate line length
-                    int dx = points[i + 1].x - points[i].x;
-                    int dy = points[i + 1].y - points[i].y;
-                    float length = sqrt(dx * dx + dy * dy);
-
                     // Map length to hue (0-40 pixels maps to full color wheel)
-                    float max_length = 40.0f;
+                    float max_length = 35.0f;
                     float hue = (length / max_length);
                     hue = hue > 1.0f ? 1.0f : hue;
 
@@ -189,11 +197,11 @@ private:
                 int x1 = points[i + 1].x;
                 int y1 = points[i + 1].y;
 
-                int dx = abs(x1 - x0);
-                int dy = abs(y1 - y0);
+                int adx = abs(x1 - x0);
+                int ady = abs(y1 - y0);
                 int sx = x0 < x1 ? 1 : -1;
                 int sy = y0 < y1 ? 1 : -1;
-                int err = dx - dy;
+                int err = adx - ady;
 
                 int steps = 0;
                 while (steps++ < 100) {  // Limit steps to prevent infinite loops
@@ -204,12 +212,12 @@ private:
                     if (x0 == x1 && y0 == y1) break;
 
                     int e2 = 2 * err;
-                    if (e2 > -dy) {
-                        err -= dy;
+                    if (e2 > -ady) {
+                        err -= ady;
                         x0 += sx;
                     }
-                    if (e2 < dx) {
-                        err += dx;
+                    if (e2 < adx) {
+                        err += adx;
                         y0 += sy;
                     }
                 }
@@ -219,7 +227,7 @@ private:
 
     // Animate dimensions with variable speed
     void animate_dimensions() {
-        const float max_dimensions = 12.0f;
+        const float max_dimensions = 18.0f;
         const float min_dimensions = 3.0f;
 
         // Variable animation speed - slower most of the time, occasionally faster
@@ -251,9 +259,38 @@ private:
                 dim_dir = true;
                 dimensions = min_dimensions;
                 // Change base when we hit minimum
-                base = random_range(2, 12);
+                base = random_range(2, 17);
                 // Change color
                 current_color_idx = random_range(0, NUM_COLORS);
+            }
+        }
+    }
+
+    // Animate zoom level
+    void animate_zoom() {
+        const float max_zoom = 0.55f;  // Zoomed out - see more of spiral
+        const float min_zoom = 0.08f;  // Zoomed in - see details
+        const float zoom_speed = 0.0003f;
+
+        uint32_t current_time = to_ms_since_boot(get_absolute_time());
+
+        // Change zoom direction every 47 seconds
+        if (current_time - last_zoom_change > zoom_change_interval) {
+            zoom_dir = !zoom_dir;
+            last_zoom_change = current_time;
+        }
+
+        if (zoom_dir) {
+            zoom += zoom_speed;
+            if (zoom >= max_zoom) {
+                zoom = max_zoom;
+                zoom_dir = false;
+            }
+        } else {
+            zoom -= zoom_speed;
+            if (zoom <= min_zoom) {
+                zoom = min_zoom;
+                zoom_dir = true;
             }
         }
     }
@@ -288,6 +325,8 @@ public:
         show_lines = true;  // Always start with lines connected
         show_trails = false;
         show_lengths = false;
+        zoom_dir = true;
+        zoom = 0.15f;
 
         // Reset button debounce timer to prevent button A from menu selection toggling lines
         last_button_time = to_ms_since_boot(get_absolute_time());
@@ -295,6 +334,7 @@ public:
         last_lines_toggle = to_ms_since_boot(get_absolute_time());
         last_trails_toggle = to_ms_since_boot(get_absolute_time());
         last_lengths_toggle = to_ms_since_boot(get_absolute_time());
+        last_zoom_change = to_ms_since_boot(get_absolute_time());
     }
 
     bool update() override {
@@ -303,6 +343,9 @@ public:
 
         // Animate dimensions
         animate_dimensions();
+
+        // Animate zoom level
+        animate_zoom();
 
         // Periodic base change
         if (time_ms - last_base_change > base_change_interval) {

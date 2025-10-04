@@ -71,15 +71,16 @@ private:
 
     // Game objects
     struct Player {
-        float x = 16.0f, y = 24.0f;  // Screen position
+        float x = 16.0f, y = 20.0f;  // Screen position
         float target_x = 16.0f;     // Target position for smooth movement
-        float target_y = 24.0f;     // Target position for smooth movement
+        float target_y = 20.0f;     // Target position for smooth movement
         int health = 100;
         uint32_t last_shot = 0;
         uint32_t invulnerable_until = 0;
         bool alive = true;
         float bank_angle = 0.0f;    // Banking left/right for visual effect
         float pitch_angle = 0.0f;   // Pitching up/down for visual effect
+        float float_offset = 0.0f;  // For gentle floating motion
     } player;
 
     struct Bullet {
@@ -132,7 +133,7 @@ private:
     int current_theme = 0;      // 0 = ocean, 1 = terrain, 2 = flying_terrain
 
     // Rendering helpers
-    float horizon_y = 50.0f;    // Horizon line position
+    float horizon_y = 12.0f;    // Horizon line position (for 32x32 display)
 
     // Performance optimization - pre-computed terrain cache
     static constexpr int TERRAIN_CACHE_WIDTH = 64;
@@ -171,54 +172,73 @@ private:
     }
 
     void renderSky() {
-        // Simplified sky with basic gradients - much faster
-        for (int y = 0; y < DISPLAY_HEIGHT; y++) {
-            float sky_factor = (float)y / DISPLAY_HEIGHT;
-            sky_factor = sky_factor * sky_factor;
+        // Beautiful gradient sky - ocean theme only
+        for (int y = 0; y < horizon_y; y++) {
+            float sky_factor = (float)y / horizon_y;
+
+            // Cyan/light blue gradient from light to darker
+            uint8_t r = (uint8_t)(135 - sky_factor * 50);   // 135->85
+            uint8_t g = (uint8_t)(206 - sky_factor * 80);   // 206->126
+            uint8_t b = (uint8_t)(235 - sky_factor * 30);   // 235->205
+
+            Pen sky_pen = gfx->create_pen(r, g, b);
+            gfx->set_pen(sky_pen);
 
             for (int x = 0; x < DISPLAY_WIDTH; x++) {
-                // Remove expensive per-pixel noise - use simple gradients
-                uint8_t r, g, b;
-                if (current_theme == 0) {
-                    // Ocean theme - simple blue gradient
-                    r = (uint8_t)(50 + sky_factor * 80);
-                    g = (uint8_t)(80 + sky_factor * 140);
-                    b = (uint8_t)(150 + sky_factor * 105);
-                } else {
-                    // Terrain theme - simple warm gradient
-                    r = (uint8_t)(120 + sky_factor * 100);
-                    g = (uint8_t)(100 + sky_factor * 120);
-                    b = (uint8_t)(120 + sky_factor * 80);
-                }
-
-                Pen sky_pen = gfx->create_pen(r, g, b);
-                gfx->set_pen(sky_pen);
                 gfx->pixel(Point(x, y));
             }
         }
 
-        // Simplified clouds - fewer and simpler shapes
-        uint32_t cloud_time = game_time / 80;
-        for (int i = 0; i < 3; i++) {  // Reduced from 5 to 3 clouds
-            float cloud_x = ((cloud_time + i * 150) % 250) - 60;
-            float cloud_y = 2 + i * 3.0f;
+        // Bright sun behind clouds
+        Pen sun_pen = gfx->create_pen(255, 255, 100);
+        gfx->set_pen(sun_pen);
+        int sun_x = 26;
+        int sun_y = 3;
 
-            if (cloud_x >= -10 && cloud_x <= DISPLAY_WIDTH + 10 && cloud_y < DISPLAY_HEIGHT * 0.3f) {
-                uint8_t cloud_r = 200;
-                uint8_t cloud_g = 220;
-                uint8_t cloud_b = 240;
+        // Sun center - bright yellow
+        for (int dy = -2; dy <= 2; dy++) {
+            for (int dx = -2; dx <= 2; dx++) {
+                int px = sun_x + dx;
+                int py = sun_y + dy;
+                if (px >= 0 && px < DISPLAY_WIDTH && py >= 0 && py < horizon_y) {
+                    float dist = sqrt(dx*dx + dy*dy);
+                    if (dist <= 2.0f) {
+                        gfx->pixel(Point(px, py));
+                    }
+                }
+            }
+        }
 
-                Pen cloud_pen = gfx->create_pen(cloud_r, cloud_g, cloud_b);
+        // Sun rays
+        Pen ray_pen = gfx->create_pen(255, 255, 150);
+        gfx->set_pen(ray_pen);
+        for (int i = 0; i < 8; i++) {
+            float angle = i * M_PI / 4.0f + game_time * 0.001f;
+            int rx = sun_x + (int)(cos(angle) * 3);
+            int ry = sun_y + (int)(sin(angle) * 3);
+            if (rx >= 0 && rx < DISPLAY_WIDTH && ry >= 0 && ry < horizon_y) {
+                gfx->pixel(Point(rx, ry));
+            }
+        }
+
+        // Larger clouds on top of sun
+        uint32_t cloud_time = game_time / 50;
+        for (int i = 0; i < 3; i++) {
+            float cloud_x = ((cloud_time + i * 200) % 300) - 70;
+            float cloud_y = 2.0f + i * 3.0f;
+
+            if (cloud_x >= -20 && cloud_x <= DISPLAY_WIDTH + 20 && cloud_y < horizon_y - 1) {
+                Pen cloud_pen = gfx->create_pen(255, 255, 255);  // Pure white
                 gfx->set_pen(cloud_pen);
 
-                // Simple circular clouds without noise
-                for (int cx = -2; cx <= 2; cx++) {
-                    for (int cy = -1; cy <= 1; cy++) {
+                // Bigger, puffier cloud shape
+                for (int cx = -4; cx <= 4; cx++) {
+                    for (int cy = -2; cy <= 2; cy++) {
                         int px = (int)cloud_x + cx;
                         int py = (int)cloud_y + cy;
-                        if (px >= 0 && px < DISPLAY_WIDTH && py >= 0 && py < DISPLAY_HEIGHT) {
-                            float distance = sqrt(cx*cx + cy*cy);
-                            if (distance <= 2.0f) {
+                        if (px >= 0 && px < DISPLAY_WIDTH && py >= 0 && py < horizon_y) {
+                            float dist = sqrt(cx*cx*0.5f + cy*cy);
+                            if (dist <= 3.0f) {
                                 gfx->pixel(Point(px, py));
                             }
                         }
@@ -420,44 +440,42 @@ private:
     void renderOcean() {
         float time_factor = game_time * 0.01f;
 
-        // Simplified ocean - much faster
-        for (int y = 0; y < DISPLAY_HEIGHT; y++) {
-            float depth_factor = (float)y / DISPLAY_HEIGHT;
+        // Beautiful ocean with proper horizon and waves
+        for (int y = horizon_y; y < DISPLAY_HEIGHT; y++) {
+            float depth_factor = (float)(y - horizon_y) / (DISPLAY_HEIGHT - horizon_y);
             depth_factor = depth_factor * depth_factor;
 
             for (int x = 0; x < DISPLAY_WIDTH; x++) {
-                float world_x = (x - DISPLAY_WIDTH/2) * (0.1f + depth_factor * 0.3f);
-                float world_z = depth_factor * 10.0f + time_factor;
+                float world_x = (x - DISPLAY_WIDTH/2) * (0.2f + depth_factor * 0.5f);
+                float world_z = depth_factor * 20.0f + time_factor;
 
-                // Single octave wave for speed
-                float wave_noise = perlin.noise(world_x, world_z);
+                // Gentler wave patterns - lower frequency, smoother
+                float wave_noise = perlin.noise(world_x * 0.15f, world_z * 0.3f);
+                float directional_waves = sin(world_x * 1.5f + time_factor * 3.0f) * 0.2f;
+                wave_noise += directional_waves * 0.5f;
 
-                // Add simple directional waves using sin
-                float directional_waves = sin(world_x * 3.0f + time_factor * 2.0f) * 0.3f;
-                wave_noise += directional_waves;
-
-                // Normalize and create wave intensity
+                // Normalize wave intensity
                 float wave_intensity = (wave_noise + 1.0f) * 0.5f;
-                float distance_fade = 1.0f - depth_factor * 0.4f;
+                float distance_brightness = 1.0f - depth_factor * 0.3f;
 
-                // Simplified color calculation
+                // More realistic ocean colors - mostly blue with subtle variation
                 uint8_t r, g, b;
-                if (wave_intensity < 0.4f) {
-                    // Deep water
-                    r = (uint8_t)(20 + wave_intensity * 100);
-                    g = (uint8_t)(60 + wave_intensity * 140);
-                    b = (uint8_t)(120 + wave_intensity * 135);
+                if (wave_intensity < 0.45f) {
+                    // Deep water - dark blue
+                    r = (uint8_t)(10 * distance_brightness);
+                    g = (uint8_t)(60 * distance_brightness);
+                    b = (uint8_t)(120 * distance_brightness);
+                } else if (wave_intensity < 0.75f) {
+                    // Normal water - medium blue
+                    r = (uint8_t)(20 * distance_brightness);
+                    g = (uint8_t)(90 * distance_brightness);
+                    b = (uint8_t)(150 * distance_brightness);
                 } else {
-                    // Wave crests
-                    r = (uint8_t)(40 + wave_intensity * 140);
-                    g = (uint8_t)(80 + wave_intensity * 160);
-                    b = (uint8_t)(140 + wave_intensity * 115);
+                    // Wave highlights - lighter blue with subtle white
+                    r = (uint8_t)(80 * distance_brightness);
+                    g = (uint8_t)(130 * distance_brightness);
+                    b = (uint8_t)(180 * distance_brightness);
                 }
-
-                // Apply distance fade
-                r = (uint8_t)(r * distance_fade);
-                g = (uint8_t)(g * distance_fade);
-                b = (uint8_t)(b * distance_fade);
 
                 Pen water_pen = gfx->create_pen(r, g, b);
                 gfx->set_pen(water_pen);
@@ -465,13 +483,13 @@ private:
             }
         }
 
-        // Simplified reflections - fewer and simpler
-        for (int i = 0; i < 4; i++) {  // Reduced from 8 to 4
-            float reflect_x = DISPLAY_WIDTH * 0.3f + i * 6.0f + sin(time_factor + i) * 4.0f;
-            float reflect_y = horizon_y + 2 + i * 3;
+        // Sun reflections on water - more subtle
+        for (int i = 0; i < 4; i++) {
+            float reflect_x = DISPLAY_WIDTH * 0.7f + i * 3.0f + sin(time_factor * 2.0f + i * 0.5f) * 2.0f;
+            float reflect_y = horizon_y + 2 + i * 5;
 
             if (reflect_x >= 0 && reflect_x < DISPLAY_WIDTH && reflect_y >= horizon_y && reflect_y < DISPLAY_HEIGHT) {
-                Pen reflect_pen = gfx->create_pen(200, 230, 255);
+                Pen reflect_pen = gfx->create_pen(200, 200, 160);
                 gfx->set_pen(reflect_pen);
                 gfx->pixel(Point((int)reflect_x, (int)reflect_y));
             }
@@ -480,7 +498,7 @@ private:
 
     void renderPlayer() {
         int px = (int)player.x;
-        int py = (int)player.y;
+        int py = (int)(player.y + player.float_offset);  // Add floating motion
 
         // Banking and pitching effects
         int wing_offset = (int)(player.bank_angle * 1.5f);
@@ -544,13 +562,13 @@ private:
 
             int screen_x, screen_y;
             if (worldToScreen(enemy.x, enemy.y, enemy.z, screen_x, screen_y)) {
-                // Much brighter enemies with better visibility
-                float dist_factor = std::min(1.0f, 30.0f / enemy.z);
-                uint8_t brightness = (uint8_t)(200 + 55 * dist_factor);  // Much brighter base
+                // Brighter enemies with better visibility
+                float dist_factor = std::min(1.0f, 40.0f / enemy.z);
+                uint8_t brightness = (uint8_t)(180 + 75 * dist_factor);
 
-                // Larger, more detailed enemy aircraft
-                float scale = std::min(1.0f, 15.0f / enemy.z);
-                int size = std::max(2, (int)(scale * 5));  // Minimum size 2, max size 5
+                // Much larger, more visible enemy aircraft
+                float scale = std::min(1.5f, 25.0f / enemy.z);
+                int size = std::max(3, (int)(scale * 8));  // Minimum size 3, max size 12
 
                 if (enemy.type == 0) {
                     // Fighter - bright red with white highlights
@@ -740,6 +758,9 @@ public:
 
         game_time += 16;  // Assuming ~60fps
 
+        // Gentle floating motion for demo effect
+        player.float_offset = sin(game_time * 0.002f) * 1.5f;  // Gentle vertical bob
+
         // Update player movement (smooth following of target with less friction)
         float move_speed = 0.15f;  // Reduced from 0.3f for less friction
         player.x += (player.target_x - player.x) * move_speed;
@@ -853,11 +874,7 @@ public:
         speed += 0.001f;
 
         // Switch themes every 5 seconds for testing
-        if (game_time - last_theme_change > 5000) {
-            current_theme = (current_theme + 1) % 3;  // Now cycle through 3 themes
-            last_theme_change = game_time;
-        }
-
+        // No theme switching - ocean only
         return true;
     }
 
@@ -866,15 +883,9 @@ public:
         gfx->set_pen(gfx->create_pen(0, 0, 0));
         gfx->clear();
 
-        // Render full-screen terrain or ocean based on current theme
-        if (current_theme == 0) {
-            renderSky();  // Ocean theme includes sky in background
-            renderOcean();
-        } else if (current_theme == 1) {
-            renderTerrain();  // Terrain theme includes sky rendering internally
-        } else {
-            renderFlyingTerrain();  // Flying terrain like demo.p5.js
-        }
+        // Ocean theme only
+        renderSky();
+        renderOcean();
 
         renderEnemies();
         renderBullets();
@@ -902,15 +913,7 @@ public:
             player.target_y += 2.5f;
         }
 
-        // Manual theme switching with B button (double-tap)
-        static uint32_t last_b_press = 0;
-        if (button_b && !last_b) {
-            if (game_time - last_b_press < 300) {  // Double-tap detection
-                current_theme = (current_theme + 1) % 3;  // Now cycle through 3 themes
-                last_theme_change = game_time;  // Reset auto-switch timer
-            }
-            last_b_press = game_time;
-        }
+        // No theme switching - removed
         if (button_vol_down && player.target_x > 3) {
             player.target_x -= 2.5f;
         }

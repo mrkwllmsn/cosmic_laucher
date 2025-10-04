@@ -22,6 +22,8 @@ private:
     int current_effect = 0;
     float animation_speed = 1.0f;
     uint32_t last_button_time = 0;
+    uint32_t last_effect_change = 0;
+    uint32_t effect_change_interval = 10000;  // 10 seconds
     
     // Static arrays for effects (shared across instances)
     static float matrix_drops[32];
@@ -292,7 +294,7 @@ private:
     void star_field() {
         const float CENTER_X = DISPLAY_WIDTH / 2.0f;
         const float CENTER_Y = DISPLAY_HEIGHT / 2.0f;
-        const float MAX_DISTANCE = sqrt(CENTER_X * CENTER_X + CENTER_Y * CENTER_Y) + 5.0f;
+        const float MAX_DISTANCE = sqrt(CENTER_X * CENTER_X + CENTER_Y * CENTER_Y) + 15.0f;
         
         // Initialize starfield layers
         if (!stars_initialized) {
@@ -511,6 +513,7 @@ public:
         time_counter = 0.0f;
         current_effect = 0;
         animation_speed = 1.0f;
+        last_effect_change = to_ms_since_boot(get_absolute_time());
     }
     
     void handleInput(bool button_a, bool button_b, bool button_c, bool button_d,
@@ -528,6 +531,8 @@ public:
         // Switch effects with A button
         if (button_a && debounce()) {
             current_effect = (current_effect + 1) % NUM_EFFECTS;
+            last_effect_change = to_ms_since_boot(get_absolute_time());  // Reset auto-cycle timer
+            printf("SHADER: Manual switch to effect %d\n", current_effect);
         }
         
         // Speed controls with B and C buttons
@@ -547,7 +552,7 @@ public:
         if (checkExitCondition(button_d)) {
             return false;  // Exit game
         }
-        
+
         // Handle other input
         handleInput(
             cosmic->is_pressed(CosmicUnicorn::SWITCH_A),
@@ -559,10 +564,18 @@ public:
             cosmic->is_pressed(CosmicUnicorn::SWITCH_BRIGHTNESS_UP),
             cosmic->is_pressed(CosmicUnicorn::SWITCH_BRIGHTNESS_DOWN)
         );
-        
+
+        // Auto-cycle through effects every 10 seconds
+        uint32_t current_time = to_ms_since_boot(get_absolute_time());
+        if (current_time - last_effect_change > effect_change_interval) {
+            current_effect = (current_effect + 1) % NUM_EFFECTS;
+            last_effect_change = current_time;
+            printf("SHADER: Auto-switched to effect %d\n", current_effect);
+        }
+
         // Update time counter
         time_counter += 0.05f;
-        
+
         return true;  // Continue game
     }
     
