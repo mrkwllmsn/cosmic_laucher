@@ -29,7 +29,7 @@ private:
     float lightning_timer;
     float thunder_flash_timer;
     bool thunder_flash_active;
-    
+
     // Customizable properties
     float spawn_chance;
     bool auto_spawn_enabled;
@@ -38,6 +38,12 @@ private:
     float start_y_min, start_y_max;
     float target_y_min, target_y_max;
     float start_x_min, start_x_max;
+
+    // Brightness flash properties
+    bool brightness_flash_enabled;
+    float base_brightness;
+    float current_brightness;
+    float brightness_fade_rate;
 
     // Callback for when lightning strikes
     LightningCallback strike_callback;
@@ -53,7 +59,11 @@ public:
         lightning_glow_r(200), lightning_glow_g(220), lightning_glow_b(255),
         start_y_min(2.0f), start_y_max(10.0f),
         target_y_min(28.0f), target_y_max(32.0f),
-        start_x_min(8.0f), start_x_max(24.0f) {
+        start_x_min(8.0f), start_x_max(24.0f),
+        brightness_flash_enabled(true),
+        base_brightness(0.7f),
+        current_brightness(0.7f),
+        brightness_fade_rate(0.05f) {
 
         lightning_branches.reserve(MAX_LIGHTNING_BRANCHES);
     }
@@ -63,8 +73,9 @@ public:
         lightning_timer = 0.0f;
         thunder_flash_timer = 0.0f;
         thunder_flash_active = false;
+        current_brightness = base_brightness;
     }
-    
+
     // Configuration methods
     void setSpawnChance(float chance) { spawn_chance = chance; }
     void enableAutoSpawn(bool enabled) { auto_spawn_enabled = enabled; }
@@ -84,6 +95,18 @@ public:
     void setStrikeCallback(const LightningCallback& callback) {
         strike_callback = callback;
     }
+
+    // Brightness flash configuration
+    void enableBrightnessFlash(bool enabled) { brightness_flash_enabled = enabled; }
+    void setBaseBrightness(float brightness) {
+        base_brightness = brightness;
+        if (current_brightness < base_brightness) {
+            current_brightness = base_brightness;
+        }
+    }
+    void setBrightnessFadeRate(float rate) { brightness_fade_rate = rate; }
+    float getBaseBrightness() const { return base_brightness; }
+    float getCurrentBrightness() const { return current_brightness; }
     
     void update(float dt) {
         lightning_timer += dt;
@@ -94,6 +117,25 @@ public:
             if (thunder_flash_timer <= 0) {
                 thunder_flash_active = false;
             }
+        }
+
+        // Update brightness flash effect
+        if (brightness_flash_enabled) {
+            if (thunder_flash_active) {
+                // Instantly set to max brightness when lightning strikes
+                current_brightness = 1.0f;
+            } else {
+                // Smoothly fade back to base brightness
+                if (current_brightness > base_brightness) {
+                    current_brightness -= brightness_fade_rate;
+                    if (current_brightness < base_brightness) {
+                        current_brightness = base_brightness;
+                    }
+                }
+            }
+        } else {
+            // When brightness flash is disabled, keep at base brightness
+            current_brightness = base_brightness;
         }
 
         // Spawn new lightning strikes randomly (only if auto-spawn is enabled)
@@ -130,10 +172,17 @@ public:
     
     // Check if thunder flash is currently active (useful for other effects)
     bool isThunderFlashing() const { return thunder_flash_active; }
-    float getThunderIntensity() const { 
+    float getThunderIntensity() const {
         if (!thunder_flash_active) return 0.0f;
         float intensity = thunder_flash_timer / 0.2f;
         return intensity > 1.0f ? 1.0f : intensity;
+    }
+
+    // Apply brightness to CosmicUnicorn (call this after update)
+    void applyBrightness(CosmicUnicorn* cosmic) {
+        if (cosmic && brightness_flash_enabled) {
+            cosmic->set_brightness(current_brightness);
+        }
     }
     
     // Manual lightning strike

@@ -50,8 +50,8 @@ private:
     static constexpr float PATH_WIDTH = 8.0f;
     static constexpr float SPEED = 3.0f;
     static constexpr int MAX_BATS = 8;
-    static constexpr float THEME_CHANGE_TIME = 25.0f; // Change theme every 25 seconds
-    static constexpr uint32_t FADE_DURATION = 300;  // 300ms fade duration
+    static constexpr float THEME_CHANGE_TIME = 30.0f; // Change theme every 30 seconds
+    static constexpr uint32_t FADE_DURATION = 400;  // 300ms fade duration
     
     struct Tree {
         float roadY;           // Distance from viewer (0=horizon, 1=foreground)
@@ -108,6 +108,13 @@ private:
     static constexpr float ANGLE_STEP = 5.0f;  // Degrees to adjust per button press
     static constexpr float MIN_ANGLE = 10.0f;  // Minimum branch angle
     static constexpr float MAX_ANGLE = 45.0f;  // Maximum branch angle
+
+    // Brightness adjustment system
+    bool last_brightness_up_pressed;
+    bool last_brightness_down_pressed;
+    static constexpr float BRIGHTNESS_STEP = 0.1f;  // Brightness adjustment per button press
+    static constexpr float MIN_BRIGHTNESS = 0.1f;
+    static constexpr float MAX_BRIGHTNESS = 1.0f;
     
     // Spooky eyes system
     AnimatedEye tree_eyes;
@@ -161,6 +168,10 @@ public:
         tree_angle_offset = 0.0f;  // Start with default angle
         last_volume_up_pressed = false;
         last_volume_down_pressed = false;
+
+        // Initialize brightness button tracking
+        last_brightness_up_pressed = false;
+        last_brightness_down_pressed = false;
         
         // Initialize eyes system
         tree_eyes.init(static_cast<PicoGraphics_PenRGB888&>(*graphics));
@@ -176,6 +187,8 @@ public:
         lightning.setTargetArea(20.0f, 32.0f);  // Ground area
         lightning.setLightningColor(255, 255, 255);
         lightning.setLightningGlowColor(200, 220, 255);
+        lightning.setBaseBrightness(base_brightness);  // Sync brightness with scene
+        lightning.enableBrightnessFlash(true);  // Enable automatic brightness flashes
         
         // Set up callback for tree flash effect
         lightning.setStrikeCallback([this](float x, float y, float intensity) {
@@ -216,17 +229,36 @@ public:
         if (cosmic) {
             bool volume_up_pressed = cosmic->is_pressed(CosmicUnicorn::SWITCH_VOLUME_UP);
             bool volume_down_pressed = cosmic->is_pressed(CosmicUnicorn::SWITCH_VOLUME_DOWN);
-            
+
             if (volume_up_pressed && !last_volume_up_pressed) {
                 tree_angle_offset = std::min(tree_angle_offset + ANGLE_STEP, MAX_ANGLE - 25.0f);
             }
-            
+
             if (volume_down_pressed && !last_volume_down_pressed) {
                 tree_angle_offset = std::max(tree_angle_offset - ANGLE_STEP, MIN_ANGLE - 25.0f);
             }
-            
+
             last_volume_up_pressed = volume_up_pressed;
             last_volume_down_pressed = volume_down_pressed;
+        }
+
+        // Check for brightness adjustment with brightness buttons
+        if (cosmic) {
+            bool brightness_up_pressed = cosmic->is_pressed(CosmicUnicorn::SWITCH_BRIGHTNESS_UP);
+            bool brightness_down_pressed = cosmic->is_pressed(CosmicUnicorn::SWITCH_BRIGHTNESS_DOWN);
+
+            if (brightness_up_pressed && !last_brightness_up_pressed) {
+                base_brightness = std::min(base_brightness + BRIGHTNESS_STEP, MAX_BRIGHTNESS);
+                lightning.setBaseBrightness(base_brightness);
+            }
+
+            if (brightness_down_pressed && !last_brightness_down_pressed) {
+                base_brightness = std::max(base_brightness - BRIGHTNESS_STEP, MIN_BRIGHTNESS);
+                lightning.setBaseBrightness(base_brightness);
+            }
+
+            last_brightness_up_pressed = brightness_up_pressed;
+            last_brightness_down_pressed = brightness_down_pressed;
         }
         
         // Update speed state system
@@ -287,13 +319,18 @@ public:
                 current_brightness = base_brightness;
             }
         } else {
-            // Normal brightness
-            current_brightness = base_brightness;
+            // Normal brightness - use lightning's brightness (includes flashes)
+            current_brightness = lightning.getCurrentBrightness();
         }
 
         // Apply brightness to cosmic unicorn
         if (cosmic) {
-            cosmic->set_brightness(current_brightness);
+            // During transitions, use scene brightness; otherwise use lightning brightness (includes flashes)
+            if (transition_state != TransitionState::NORMAL) {
+                cosmic->set_brightness(current_brightness);
+            } else {
+                lightning.applyBrightness(cosmic);
+            }
         }
         
         // Update spreading behavior cycle
