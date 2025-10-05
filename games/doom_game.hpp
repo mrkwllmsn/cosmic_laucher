@@ -50,6 +50,14 @@ private:
     float targetAngle = 0.0f;
     bool isRotating = false;
 
+    // Demo mode state
+    bool demoMode = true;
+    uint32_t lastInputTime = 0;
+    static constexpr uint32_t DEMO_TIMEOUT = 30000;  // 30 seconds
+
+    // Input state for debouncing
+    bool lastButtonC = false;
+
     // Weapon system
     int weaponType = 0;  // 0=single, 1=spread, 2=rapid, 3=plasma, 4=lightning
     Lightning lightning;
@@ -1867,6 +1875,11 @@ public:
         currentBrightness = 0.7f;
         targetBrightness = 0.7f;
         cosmic->set_brightness(currentBrightness);
+
+        // Initialize demo mode
+        demoMode = true;
+        lastInputTime = time_us_32() / 1000;
+        lastButtonC = false;
     }
 
     void resetGame() {
@@ -1912,7 +1925,16 @@ public:
             return !shouldExit;
         }
 
-        updateAI();
+        // Check demo mode timeout
+        if (!demoMode && (currentTime - lastInputTime > DEMO_TIMEOUT)) {
+            demoMode = true;
+        }
+
+        // Only run AI when in demo mode
+        if (demoMode) {
+            updateAI();
+        }
+
         updateBullets();
         updateEnemies();
         updateParticles();
@@ -2011,17 +2033,77 @@ public:
     void handleInput(bool button_a, bool button_b, bool button_c, bool button_d,
                      bool button_vol_up, bool button_vol_down,
                      bool button_bright_up, bool button_bright_down) override {
-        // Only exit on B button to avoid interfering with game
-        if (button_b) {
+        uint32_t currentTime = time_us_32() / 1000;
+
+        // Check for exit (long press D button)
+        if (checkExitCondition(button_d)) {
             shouldExit = true;
+            return;
         }
 
-        // Button D to cycle weapons (for testing)
-        if (button_d && !buttonDPressed) {
-            weaponType = (weaponType + 1) % 5;  // 5 weapons (0-4)
-            buttonDPressed = true;
-        } else if (!button_d) {
-            buttonDPressed = false;
+        // Check if any input is active (to exit demo mode)
+        if (button_a || button_b || button_c || button_d ||
+            button_vol_up || button_vol_down) {
+            if (demoMode) {
+                demoMode = false;
+            }
+            lastInputTime = currentTime;
+        }
+
+        // Manual controls (only when not in demo mode and not dead)
+        if (!demoMode && !isDead) {
+            // SWITCH_A = Forward
+            if (button_a) {
+                float newX = playerX + cosf(playerAngle) * PLAYER_SPEED;
+                float newY = playerY + sinf(playerAngle) * PLAYER_SPEED;
+                if (isValidPosition(newX, newY)) {
+                    playerX = newX;
+                    playerY = newY;
+                }
+            }
+
+            // Volume Up = Backward
+            if (button_vol_up) {
+                float newX = playerX - cosf(playerAngle) * PLAYER_SPEED;
+                float newY = playerY - sinf(playerAngle) * PLAYER_SPEED;
+                if (isValidPosition(newX, newY)) {
+                    playerX = newX;
+                    playerY = newY;
+                }
+            }
+
+            // SWITCH_B = Rotate Left
+            if (button_b) {
+                playerAngle -= ROTATION_SPEED * 2.0f;
+            }
+
+            // Volume Down = Rotate Right
+            if (button_vol_down) {
+                playerAngle += ROTATION_SPEED * 2.0f;
+            }
+
+            // SWITCH_C = Shoot (with debouncing)
+            if (button_c && !lastButtonC) {
+                shoot();
+            }
+            lastButtonC = button_c;
+
+            // SWITCH_D = Change Weapon (with debouncing)
+            // Note: Long press D (1 second) exits the game
+            if (button_d && !buttonDPressed) {
+                weaponType = (weaponType + 1) % 5;  // 5 weapons (0-4)
+                buttonDPressed = true;
+            } else if (!button_d) {
+                buttonDPressed = false;
+            }
+        } else if (demoMode) {
+            // In demo mode, still allow weapon cycling for testing
+            if (button_d && !buttonDPressed) {
+                weaponType = (weaponType + 1) % 5;
+                buttonDPressed = true;
+            } else if (!button_d) {
+                buttonDPressed = false;
+            }
         }
     }
 };

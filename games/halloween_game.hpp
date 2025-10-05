@@ -2055,7 +2055,8 @@ public:
         stormy_night.init(&graphics);
         doom_game.init(graphics, cosmic_unicorn);
 
-        current_scene = CREEPY_EYES;
+        // Start from a random scene each time
+        current_scene = static_cast<HalloweenScene>(rand() % SCENE_COUNT);
         scene_start_time = to_ms_since_boot(get_absolute_time());
         scene_duration = 8000; // 8 seconds per scene
         animation_timer = 0;

@@ -22,6 +22,7 @@
 #include "games/spiral_game.hpp"
 #include "games/circles_game.hpp"
 #include "games/doom_game.hpp"
+#include "games/flappy_bird_game.hpp"
 #include "games/bluetooth_pair_game.hpp"
 #include "wifi_config.hpp"
 
@@ -75,6 +76,7 @@ void initializeLauncher() {
     menu.addGame("BLOCKS", "Classic block puzzle", std::make_unique<TetrisGame>());
     menu.addGame("FLIGHT", "Fly over ocean, shoot enemies", std::make_unique<AfterburnerGame>());
     menu.addGame("DOOM", "Retro 3D raycasting shooter", std::make_unique<DoomGame>());
+    menu.addGame("FLAPPY", "Flap through pipes", std::make_unique<FlappyBirdGame>());
     menu.addGame("BLOBS", "Visual shader effects", std::make_unique<ShaderEffectsGame>());
     menu.addGame("SPIRAL", "Mathematical number spiral", std::make_unique<SpiralGame>());
     menu.addGame("CIRCLE", "Recursive circle patterns", std::make_unique<CirclesGame>());
