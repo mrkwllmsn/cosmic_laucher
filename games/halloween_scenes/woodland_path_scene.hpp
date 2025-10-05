@@ -50,7 +50,8 @@ private:
     static constexpr float PATH_WIDTH = 8.0f;
     static constexpr float SPEED = 3.0f;
     static constexpr int MAX_BATS = 8;
-    static constexpr float THEME_CHANGE_TIME = 15.0f; // Change theme every 15 seconds
+    static constexpr float THEME_CHANGE_TIME = 25.0f; // Change theme every 25 seconds
+    static constexpr uint32_t FADE_DURATION = 300;  // 300ms fade duration
     
     struct Tree {
         float roadY;           // Distance from viewer (0=horizon, 1=foreground)
@@ -65,8 +66,20 @@ private:
     std::vector<Boid> boids;
     std::vector<Theme> themes;
     int current_theme_index;
+    int pending_theme_index;  // Theme to switch to after fade out
     float theme_timer;
     bool last_c_pressed;
+
+    // Fade transition state
+    enum class TransitionState {
+        NORMAL,
+        FADING_OUT,
+        FADING_IN
+    };
+    TransitionState transition_state;
+    uint32_t transition_start_time;
+    float current_brightness;
+    float base_brightness;  // Store base brightness to restore after transitions
     
     float distance;           // Total distance traveled
     float road_curve;         // Current road curve amount
@@ -125,8 +138,15 @@ public:
         animation_phase = 0.0f;
         theme_timer = 0.0f;
         current_theme_index = 0;
+        pending_theme_index = 0;
         last_c_pressed = false;
         last_update_time = to_ms_since_boot(get_absolute_time());
+
+        // Initialize transition state
+        transition_state = TransitionState::NORMAL;
+        transition_start_time = 0;
+        current_brightness = 0.7f;
+        base_brightness = 0.7f;
         
         // Initialize spreading behavior
         spreading_timer = 0.0f;
@@ -177,14 +197,16 @@ public:
         uint32_t current_time = to_ms_since_boot(get_absolute_time());
         float dt = (current_time - last_update_time) / 1000.0f;
         last_update_time = current_time;
-        
+
         // Check for manual theme change with C button
         bool c_pressed = false;
         if (cosmic) {
             c_pressed = cosmic->is_pressed(CosmicUnicorn::SWITCH_C);
-            if (c_pressed && !last_c_pressed && !themes.empty()) {
-                current_theme_index = (current_theme_index + 1) % themes.size();
-                current_theme = themes[current_theme_index];
+            if (c_pressed && !last_c_pressed && !themes.empty() && transition_state == TransitionState::NORMAL) {
+                // Start fade out for manual theme change
+                pending_theme_index = (current_theme_index + 1) % themes.size();
+                transition_state = TransitionState::FADING_OUT;
+                transition_start_time = current_time;
                 theme_timer = 0.0f; // Reset automatic timer when manually changed
             }
         }
@@ -229,12 +251,49 @@ public:
         distance += current_speed * dt;
         animation_phase += dt * 0.5f;
         theme_timer += dt;
-        
+
         // Update theme periodically (automatic cycling)
-        if (theme_timer >= THEME_CHANGE_TIME && !themes.empty()) {
+        if (theme_timer >= THEME_CHANGE_TIME && !themes.empty() && transition_state == TransitionState::NORMAL) {
             theme_timer = 0.0f;
-            current_theme_index = (current_theme_index + 1) % themes.size();
-            current_theme = themes[current_theme_index];
+            // Start fade out for automatic theme change
+            pending_theme_index = (current_theme_index + 1) % themes.size();
+            transition_state = TransitionState::FADING_OUT;
+            transition_start_time = current_time;
+        }
+
+        // Handle fade transitions
+        if (transition_state == TransitionState::FADING_OUT) {
+            // Fade to black
+            float fade_progress = (float)(current_time - transition_start_time) / FADE_DURATION;
+            current_brightness = base_brightness * (1.0f - fade_progress);
+            if (current_brightness < 0.0f) current_brightness = 0.0f;
+
+            // When fade out completes, change theme and start fade in
+            if (fade_progress >= 1.0f) {
+                current_theme_index = pending_theme_index;
+                current_theme = themes[current_theme_index];
+                transition_state = TransitionState::FADING_IN;
+                transition_start_time = current_time;
+            }
+        } else if (transition_state == TransitionState::FADING_IN) {
+            // Fade from black
+            float fade_progress = (float)(current_time - transition_start_time) / FADE_DURATION;
+            current_brightness = base_brightness * fade_progress;
+            if (current_brightness > base_brightness) current_brightness = base_brightness;
+
+            // When fade in completes, return to normal
+            if (fade_progress >= 1.0f) {
+                transition_state = TransitionState::NORMAL;
+                current_brightness = base_brightness;
+            }
+        } else {
+            // Normal brightness
+            current_brightness = base_brightness;
+        }
+
+        // Apply brightness to cosmic unicorn
+        if (cosmic) {
+            cosmic->set_brightness(current_brightness);
         }
         
         // Update spreading behavior cycle

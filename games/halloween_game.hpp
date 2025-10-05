@@ -4,6 +4,7 @@
 #include "animated_eyes.hpp"
 #include "halloween_scenes/woodland_path_scene.hpp"
 #include "halloween_scenes/stormy_night_scene.hpp"
+#include "doom_game.hpp"
 #include <cmath>
 #include <vector>
 
@@ -24,6 +25,7 @@ private:
         WOODLAND_PATH,
         FLYING_BATS,
         WITCH_HAT,
+        DOOM_SCENE,
         SCENE_COUNT
     };
     
@@ -114,7 +116,10 @@ private:
     
     // Stormy night scene
     StormyNightScene stormy_night;
-    
+
+    // Doom game scene
+    DoomGame doom_game;
+
     // Background animation
     float background_phase;
     
@@ -2048,7 +2053,8 @@ public:
         ghost_eyes.init(graphics);
         woodland_path.init(&graphics);
         stormy_night.init(&graphics);
-        
+        doom_game.init(graphics, cosmic_unicorn);
+
         current_scene = CREEPY_EYES;
         scene_start_time = to_ms_since_boot(get_absolute_time());
         scene_duration = 8000; // 8 seconds per scene
@@ -2151,7 +2157,7 @@ public:
         if (in_transition) {
             // Longer duration for WOODLAND_PATH transitions
             current_scene_duration = scene_duration * 2;  // 2 seconds for transitions
-        } else if (current_scene == FLYING_BATS || current_scene == BAT_FLOCK) {
+        } else if (current_scene == DOOM_SCENE || current_scene == BAT_FLOCK) {
             current_scene_duration = scene_duration * 2;
         } else if (current_scene == CREEPY_EYES) {
             current_scene_duration = scene_duration * 3;
@@ -2261,7 +2267,7 @@ public:
             case CREEPY_EYES:
                 // Eye animation is now handled by the AnimatedEye class
                 // Check if it's time to regenerate eyes (every 10 seconds)
-                if (current_time - eyes_regen_timer > 40000) {
+                if (current_time - eyes_regen_timer > 20000) {
                     generateRandomEyes();
                     eyes_regen_timer = current_time;
                 }
@@ -2284,7 +2290,12 @@ public:
             case WITCH_HAT:
                 witch_sparkle_phase += 0.03f;
                 break;
-                
+
+            case DOOM_SCENE:
+                // Doom game updates itself
+                doom_game.update();
+                break;
+
             case CANDLE_FLAME:
                 candle_flicker_phase += 0.08f;
                 break;
@@ -2378,6 +2389,9 @@ public:
                 break;
             case WITCH_HAT:
                 drawWitchHat();
+                break;
+            case DOOM_SCENE:
+                doom_game.render(graphics);
                 break;
             case CANDLE_FLAME:
                 drawCandleFlame();
